@@ -4,7 +4,7 @@ import axios from 'axios';
 interface Product {
   _id: string;
   name: string;
-  imageUrl:string;
+  imageUrl: string;
   price: number;
   quantity: number;
 }
@@ -20,6 +20,7 @@ interface ProductContextProps {
   totalPrice: number;
   addToCart: (productId: string) => void;
   removeFromCart: (productId: string) => void;
+  updateQuantity: (productId: string, newQuantity: number) => void;
 }
 
 const ProductContext = createContext<ProductContextProps | undefined>(undefined);
@@ -32,7 +33,7 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const API_URL = import.meta.env.VITE_ALL_PRODUCTS_URL;
 
-  // Middleware function to fetch products
+  // Fetch products from the API
   const fetchAllProducts = async () => {
     try {
       const response = await axios.get<Product[]>(API_URL || '');
@@ -42,13 +43,25 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  // Update total price and quantity
-  const updateCartSummary = () => {
-    const quantity = cart.reduce((sum, item) => sum + item.cartQuantity, 0);
-    const price = cart.reduce((sum, item) => sum + item.cartQuantity * item.price, 0);
-    setTotalQuantity(quantity);
-    setTotalPrice(price);
-  };
+  useEffect(() => {
+    fetchAllProducts(); // Call fetchAllProducts to fetch the data on component mount
+  }, []);
+  // Load cart from sessionStorage on initialization
+  useEffect(() => {
+    const storedCart = sessionStorage.getItem('cart');
+    if (storedCart) {
+      setCart(JSON.parse(storedCart));
+    }
+  }, []);
+
+  // Save cart to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('cart', JSON.stringify(cart));
+    const totalQty = cart.reduce((sum, item) => sum + item.cartQuantity, 0);
+    const totalPrice = cart.reduce((sum, item) => sum + item.cartQuantity * item.price, 0);
+    setTotalQuantity(totalQty);
+    setTotalPrice(totalPrice);
+  }, [cart]);
 
   // Add product to cart
   const addToCart = (productId: string) => {
@@ -70,29 +83,23 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Remove product from cart
   const removeFromCart = (productId: string) => {
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item._id === productId);
-      if (existingItem?.cartQuantity === 1) {
-        return prevCart.filter((item) => item._id !== productId);
-      } else {
-        return prevCart.map((item) =>
-          item._id === productId ? { ...item, cartQuantity: item.cartQuantity - 1 } : item
-        );
-      }
-    });
+    setCart((prevCart) =>
+      prevCart.filter((item) => item._id !== productId)
+    );
   };
 
-  useEffect(() => {
-    fetchAllProducts();
-  }, []);
-
-  useEffect(() => {
-    updateCartSummary();
-  }, [cart]);
+  // Update quantity of an item
+  const updateQuantity = (productId: string, newQuantity: number) => {
+    setCart((prevCart) =>
+      prevCart.map((item) =>
+        item._id === productId ? { ...item, cartQuantity: newQuantity } : item
+      )
+    );
+  };
 
   return (
     <ProductContext.Provider
-      value={{ products, cart, totalQuantity, totalPrice, addToCart, removeFromCart }}
+      value={{ products, cart, totalQuantity, totalPrice, addToCart, removeFromCart, updateQuantity }}
     >
       {children}
     </ProductContext.Provider>

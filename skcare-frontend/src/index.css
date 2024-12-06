@@ -1,3 +1,7 @@
+@import url('https://fonts.cdnfonts.com/css/satoshi');
+
+                
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,7 +10,7 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: Satoshi;
+  font-family: 'Satoshi', sans-serif;
 }
 
 

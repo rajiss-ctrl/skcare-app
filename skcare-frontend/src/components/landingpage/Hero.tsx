@@ -7,14 +7,14 @@ const Hero = () => {
   return (
     <section className="bg-[#EFF0F2] text-white font-sans">
       {/* CTA Remark for Mobile */}
-      <div className="  flex items-center pt-10 md:pt-0 justify-center">
+      {/* <div className="  flex items-center pt-10 md:pt-0 justify-center">
         <p className='bg-[#4F705B] w-full text-center text-white text-xm md:text-sm py-2 leading-[21.6px] font-medium font-[Satoshi]'>
           Free deliveries on all orders within Nigeria
         </p>
-      </div>
+      </div> */}
       
       {/* Navbar */}  
-        <NavBar/>
+        {/* <NavBar/> */}
     
       {/* Hero Content */}
       <div className="flex flex-col-reverse lg:flex-row items-center justify-between px-6 lg:pr-0 lg:pl-16">

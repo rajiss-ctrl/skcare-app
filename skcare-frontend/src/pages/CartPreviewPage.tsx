@@ -2,31 +2,23 @@ import React, { useState } from 'react';
 import NavBar from '../components/NavBar';
 import Footer from '../components/Footer';
 import Trash from '../assets/svg/trash-icon.svg';
+import CCApple from '../assets/svg/la_cc-apple-pay.svg';
+import CreditCard from '../assets/svg/credit-card.svg';
+import Send from '../assets/svg/send.svg';
 import Minus from '../assets/svg/minus.svg';
 import Plus from '../assets/svg/plus.svg';
-// import Transfer from '../assets/transfer.svg';
-// import CreditCard from '../assets/credit-card.svg';
-// import ApplePay from '../../assets/svg/apple-pay.svg';
 import { useNavigate } from 'react-router-dom';
 import { useProductContext } from '../context/ProductContext';
-
-// Define types for individual CartItems
-interface CartItem {
-  _id: string;
-  name: string;
-  quantity: number;
-  price: number;
-  imageUrl:string;
-}
 
 type PaymentMethod = 'bank' | 'credit-card' | 'apple-pay' | null;
 
 const CartPreviewPage: React.FC = () => {
-  const { cart, totalPrice, removeFromCart, addToCart } = useProductContext();
+  const { cart, totalPrice, removeFromCart, updateQuantity } = useProductContext();
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>(null);
   const [checkedItems, setCheckedItems] = useState<string[]>([]);
   const [checkAll, setCheckAll] = useState(false);
   const [error, setError] = useState<string>('');
+  const [discount, setDiscount] = useState<number>(0); // Discount state
 
   const navigate = useNavigate();
 
@@ -34,9 +26,11 @@ const CartPreviewPage: React.FC = () => {
     removeFromCart(productId);
   };
 
-  const handleUpdateQuantity = (productId: string, quantity: number) => {
-    if (quantity > 0) {
-      addToCart(productId);
+  const handleCheckItem = (id: string) => {
+    if (checkedItems.includes(id)) {
+      setCheckedItems(checkedItems.filter((itemId) => itemId !== id));
+    } else {
+      setCheckedItems([...checkedItems, id]);
     }
   };
 
@@ -46,14 +40,6 @@ const CartPreviewPage: React.FC = () => {
       setCheckedItems(cart.map((item) => item._id));
     } else {
       setCheckedItems([]);
-    }
-  };
-
-  const handleCheckItem = (id: string) => {
-    if (checkedItems.includes(id)) {
-      setCheckedItems(checkedItems.filter((itemId) => itemId !== id));
-    } else {
-      setCheckedItems([...checkedItems, id]);
     }
   };
 
@@ -69,116 +55,120 @@ const CartPreviewPage: React.FC = () => {
     navigate('/checkout-form');
   };
 
+  // Calculate grand total
+  const grandTotal = totalPrice - discount;
+
   return (
-    <section className='container mx-auto px-4 py-8'>
-      <div className="hidden md:block text-center py-2">
+    <section className='pb-10'>
+      <div className="hidden md:block text-center py-2 bg-[#4F705B] text-white">
         <p>Free deliveries on all orders within Nigeria</p>
       </div>
       <NavBar />
       <h1 className='text-center text-2xl font-semibold py-8'>Cart</h1>
-      <div className="flex justify-between items-start">
-        <div className="w-3/5 py-10">
+      <div className="flex flex-col lg:flex-row justify-between items-start">
+        <div className="w-full lg:w-3/5 py-10 px-3 lg:px-4 ">
           {cart.length === 0 ? (
             <h3>Your cart is empty</h3>
           ) : (
-            <table className="w-full border border-gray-300 rounded-lg">
+            <table className="w-full border border-gray-300 rounded-t-[10px]">
               <thead>
-                <tr>
-                  <th className='flex items-center space-x-2'>
+                <tr className='border-b border-gray-300  '>
+                  <th className='flex items-center gap-2 pl-14 py-4 '>
                     <input
                       type="checkbox"
                       checked={checkAll}
                       onChange={handleCheckAll}
                       className="w-5 h-5"
                     />
-                    <span>Product</span>
+                    <span className='text-xs font-medium'>Product</span>
                   </th>
-                  <th>Quantity</th>
-                  <th>Price</th>
+                  <th className='text-xs font-medium'>Quantity</th>
+                  <th className='text-xs font-medium'>Price</th>
                 </tr>
               </thead>
               <tbody>
-                {cart.map((item: CartItem) => {
-                  const image = item?.imageUrl;
-                  return (
-                    <tr key={item._id} className="border-t border-gray-200">
-                      <td className='flex space-x-2 items-center'>
-                        <input
-                          type="checkbox"
-                          checked={checkedItems.includes(item._id)}
-                          onChange={() => handleCheckItem(item._id)}
-                          className="w-5 h-5"
-                        />
-                        <img src={`/api/images/${image}`} alt="" className="w-16 h-16" />
-                        <div>
-                          <h4 className="text-lg font-semibold text-gray-700">{item.name}</h4>
+                {cart.map((item) => (
+                  <tr key={item._id} className=' border-b border-[#0000000D]'>
+                    <td className='flex gap-2 py-4 pl-14'>
+                      <input
+                        type="checkbox"
+                        checked={checkedItems.includes(item._id)}
+                        onChange={() => handleCheckItem(item._id)}
+                        className="w-5 h-5"
+                      />
+                      <div className="flex gap-2">
+                        <img src={item.imageUrl} alt={item.name} className='w-[60px] rounded-[5px]' />
+                        <div className="flex flex-col">
+                          <span className='text-[#000000B2] text-sm lg:text-[16px] bold'>{item.name}</span>
+                          <span className='text-[#000000B2] text-sm lg:text-[16px] font-normal'>Size</span>
                         </div>
-                      </td>
-                      <td>
-                        <div className="flex items-center justify-between border border-gray-200 rounded-lg p-2 w-24">
-                          <img onClick={() => handleUpdateQuantity(item._id, item.quantity - 1)} src={Minus} alt="" className="cursor-pointer" />
-                          <span>{item.quantity}</span>
-                          <img onClick={() => handleUpdateQuantity(item._id, item.quantity + 1)} src={Plus} alt="" className="cursor-pointer" />
-                        </div>
-                        <button
-                          className='flex items-center justify-center gap-2 mt-2 text-sm text-red-600'
-                          onClick={() => handleRemoveFromCart(item._id)}
-                        >
-                          <img src={Trash} alt="trash icon" className="w-4 h-4" />
-                          <span>Delete</span>
-                        </button>
-                      </td>
-                      <td className='text-lg font-semibold text-gray-900'>₦{item.price}</td>
-                    </tr>
-                  );
-                })}
+                      </div>
+                    </td>
+                    <td className=''>
+                      <div className="flex justify-between items-center p-2 border border-[#0000000D] rounded-[5px]">
+                        <button onClick={() => updateQuantity(item._id, item.cartQuantity - 1)} className='text-[16px] font-bold'>-</button>
+                        <span>{item.cartQuantity}</span>
+                        <button onClick={() => updateQuantity(item._id, item.cartQuantity + 1)} className='text-[16px] font-bold'>+</button>
+                      </div>
+                      <button onClick={() => handleRemoveFromCart(item._id)} className="text-[#000000] mt-1 flex items-center justify-center w-full gap-[2px]">
+                        <img src={Trash} alt="trash icon" className='w-[16px]' />
+                        <p className='text-xs'>Delete</p>
+                      </button>
+                    </td>
+                    <td className='flex items-center justify-center'>
+                      ₦{item.price * item.cartQuantity}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
         </div>
-
-        <div className="w-2/5 p-10 bg-gray-100 rounded-lg">
-          <div>
-            <h4 className="text-lg font-semibold text-gray-700">Summary</h4>
-            <div className="py-4 flex justify-between">
-              <span className="text-lg">Total</span>
-              <span className="text-lg font-semibold text-gray-900">₦{totalPrice}</span>
+        <div className="w-full lg:w-[35%] pl-3 pr-3 lg:pr-8">
+          <div className=" shadow-sm border border-[#0000000D] rounded-[10px]">
+            <div className="py-2 flex justify-between px-4 border-b border-[#0000000D]">
+              <span className="text-lg">Sub-total</span>
+              <span className="text-lg font-semibold ">₦{totalPrice}</span>
             </div>
-            <div className="flex gap-4">
-              <button
-                className="w-full py-2 bg-green-500 text-white rounded-lg"
-                onClick={() => setSelectedPayment('bank')}
-              >
-                Bank Transfer
-              </button>
-              <button
-                className="w-full py-2 bg-blue-500 text-white rounded-lg"
-                onClick={() => setSelectedPayment('credit-card')}
-              >
-                Credit Card
-              </button>
+            <div className="py-2 flex justify-between px-4 border-b border-[#0000000D]">
+              <span className="text-lg">Discount</span>
+              <span className="text-lg font-semibold ">
+                ₦{discount > 0 ? discount : '0000'}
+              </span>
             </div>
-            <div className="py-2 flex justify-between">
-              <button
-                className="w-full py-2 bg-yellow-500 text-white rounded-lg"
-                onClick={() => setSelectedPayment('apple-pay')}
-              >
-                Apple Pay
-              </button>
+            <div className="py-2 flex justify-between px-4 border-b border-[#0000000D]">
+              <span className="text-lg">Grand total</span>
+              <span className="text-lg font-semibold ">
+                ₦{grandTotal > 0 ? grandTotal : '0000'}
+              </span>
             </div>
-            {error && <div className="text-red-500 text-sm py-2">{error}</div>}
-            <div className="pt-4">
+            <div className="pt-[80px] pb-2 flex justify-center items-center border-b border-[#0000000D]">
+              <span className="text-lg">Mode of payment</span>
+            </div>
+            <div className="py-2 flex hover:bg-[#E4E8E74D] justify-between px-4 hover:border-t hover:boder-[2px solid] cursor-pointer border-b border-[#0000000D]">
+              <span className="text-lg">Bank Transfer</span>
+              <img src={Send} alt="send icon" />
+            </div>
+            <div className="py-2 flex hover:bg-[#E4E8E74D] justify-between px-4 hover:border-t hover:boder-[2px solid] cursor-pointer border-b border-[#0000000D]">
+              <span className="text-lg">Credit Card</span>
+              <img src={CreditCard} alt="credit card icon" />
+            </div>
+            <div className="py-2 flex hover:bg-[#E4E8E74D] justify-between px-4 hover:border-t hover:boder-[2px solid] cursor-pointer border-b border-[#0000000D]">
+              <span className="text-lg">Apple Pay</span>
+              <img src={CCApple} alt="apple pay icon" />
+            </div>
+            {error && <div className="text-sm py-2">{error}</div>}
+            <div className="py-6 px-10">
               <button
-                className="w-full py-2 bg-blue-500 text-white rounded-lg"
+                className="w-full py-2 rounded-[8px] bg-[#4F705B] text-white font-bold"
                 onClick={handleCheckout}
               >
-                Checkout
+                Proceed to checkout
               </button>
             </div>
           </div>
         </div>
       </div>
-      <Footer />
     </section>
   );
 };

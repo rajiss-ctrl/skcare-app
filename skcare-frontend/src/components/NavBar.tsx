@@ -61,7 +61,7 @@ const NavBar = () => {
           />
         </div>
         <div className="flex items-center gap-6">
-          <Link to="/cart-preview-page" className="relative flex items-center">
+          <Link to="/cartpreview" className="relative flex items-center">
             {cartItemCount > 0 && (
               <div className="absolute top-[-8px] right-[-5px] bg-red-500 text-white text-xs font-semibold w-4 h-4 rounded-full flex items-center justify-center">
                 {cartItemCount}
