@@ -7,14 +7,18 @@ const Hero = () => {
   return (
     <section className="bg-[#EFF0F2] text-white font-sans">
       {/* CTA Remark for Mobile */}
-      {/* <div className="  flex items-center pt-10 md:pt-0 justify-center">
+      <div className="  flex items-center pt-10 md:pt-0 justify-center">
         <p className='bg-[#4F705B] w-full text-center text-white text-xm md:text-sm py-2 leading-[21.6px] font-medium font-[Satoshi]'>
           Free deliveries on all orders within Nigeria
         </p>
-      </div> */}
+      </div>
+      {/* Public key=FLWPUBK_TEST-6cbe1fbc89c44ff6f9e9a61a16b599e3-X
       
+      Secret key=FLWSECK_TEST-bc281ef453bd5b1e8bca0f9b3f0276de-X
+      
+      Encryption key=FLWSECK_TEST0e869f37ae54 */}
       {/* Navbar */}  
-        {/* <NavBar/> */}
+        <NavBar/>
     
       {/* Hero Content */}
       <div className="flex flex-col-reverse lg:flex-row items-center justify-between px-6 lg:pr-0 lg:pl-16">

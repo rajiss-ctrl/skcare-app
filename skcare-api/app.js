@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const productRoutes = require('./routes/productRoutes.js');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+
+
 dotenv.config();
 
 const app = express();
@@ -33,6 +35,10 @@ app.use(bodyParser.json());
 
 // Routes
 app.use('/products', productRoutes);
+
+// Use flutter routes
+// app.use('/api', flutterRoute);
+
 
 // Start Server
 const PORT = process.env.PORT || 5000;

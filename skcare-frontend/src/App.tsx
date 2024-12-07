@@ -6,6 +6,7 @@ import Layout from "./outlet/Layout";
 import Admin from "./admin/pages/Admin";
 import SingleProduct from "./pages/SingleProduct";
 import CartPreviewPage from "./pages/CartPreviewPage";
+import CheckoutForm from "./pages/Checkout";
 // import HomePage from "./pages/HomePage";
 
 // import SigninSignup from "./pages/signin-signup/SigninSignup";
@@ -19,6 +20,7 @@ function App() {
             <Route index element={<LandingPage />} />
             <Route path="/cartpreview" element={<CartPreviewPage />} />
             <Route path="/product/:productId" element={<SingleProduct />} />
+            <Route path={"/checkout-form"} element={<CheckoutForm />} />
             <Route path={"/admin"} element={<Admin />} />
           </Route>
           {/* <Route path={"/"} element={<Layout />}>

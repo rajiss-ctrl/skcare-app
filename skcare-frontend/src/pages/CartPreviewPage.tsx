@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import NavBar from '../components/NavBar';
-import Footer from '../components/Footer';
 import Trash from '../assets/svg/trash-icon.svg';
 import CCApple from '../assets/svg/la_cc-apple-pay.svg';
 import CreditCard from '../assets/svg/credit-card.svg';
@@ -106,9 +105,13 @@ const CartPreviewPage: React.FC = () => {
                     </td>
                     <td className=''>
                       <div className="flex justify-between items-center p-2 border border-[#0000000D] rounded-[5px]">
-                        <button onClick={() => updateQuantity(item._id, item.cartQuantity - 1)} className='text-[16px] font-bold'>-</button>
+                        <button onClick={() => updateQuantity(item._id, item.cartQuantity - 1)} className='text-[16px] font-bold'>
+                          <img src={Minus} alt="-" />
+                        </button>
                         <span>{item.cartQuantity}</span>
-                        <button onClick={() => updateQuantity(item._id, item.cartQuantity + 1)} className='text-[16px] font-bold'>+</button>
+                        <button onClick={() => updateQuantity(item._id, item.cartQuantity + 1)} className='text-[16px] font-bold'>
+                          <img src={Plus} alt="+" />
+                        </button>
                       </div>
                       <button onClick={() => handleRemoveFromCart(item._id)} className="text-[#000000] mt-1 flex items-center justify-center w-full gap-[2px]">
                         <img src={Trash} alt="trash icon" className='w-[16px]' />
