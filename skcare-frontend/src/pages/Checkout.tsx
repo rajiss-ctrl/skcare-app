@@ -44,10 +44,10 @@ const CheckoutForm: React.FC = () => {
     console.error('Error during submission:', error);
   };
  
-
+const TEST_FLW_PUBLIC_KEY = import.meta.env.VITE_TEST_FLW_PUBLIC_KEY
 
    const config = {
-    public_key: 'FLWPUBK_TEST-6cbe1fbc89c44ff6f9e9a61a16b599e3-X',
+    public_key: `${TEST_FLW_PUBLIC_KEY}`,
     tx_ref: Date.now(),
     amount: `${totalAmount}`,
     currency: 'NGN',
