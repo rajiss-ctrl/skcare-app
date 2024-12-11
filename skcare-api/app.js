@@ -1,7 +1,9 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
-const productRoutes = require('./routes/productRoutes.js');
+const productRoutes = require('./routes/productRoutes');
+const userRoutes = require('./routes/userRoutes');
+const cartRoutes = require('./routes/cartRoutes');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
@@ -10,12 +12,12 @@ dotenv.config();
 
 const app = express();
 
-// app.use(cors());
+app.use(cors());
 
-app.use(cors({
-  origin: 'http://localhost:5173' // Your frontend URL
-}));
-app.use(express.json());
+// app.use(cors({
+//   origin: 'http://localhost:5173' // Your frontend URL
+// }));
+// app.use(express.json());
 
 // Set a custom timeout for the entire server (e.g., 5 minutes)
 app.use((req, res, next) => {
@@ -35,9 +37,10 @@ app.use(bodyParser.json());
 
 // Routes
 app.use('/products', productRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/cart', cartRoutes);
 
-// Use flutter routes
-// app.use('/api', flutterRoute);
+
 
 
 // Start Server

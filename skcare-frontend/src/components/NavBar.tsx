@@ -7,6 +7,7 @@ import User from '../assets/svg/user.svg';
 import { Link, useLocation } from 'react-router-dom';
 import { useProductContext } from '../context/ProductContext'; // Import the context
 import MobileNav from './ShadMobileNav';
+import AuthButton from './AuthButton';
 
 const NavBar = () => {
   const { cart } = useProductContext(); // Access cart from context
@@ -26,6 +27,9 @@ const NavBar = () => {
             <img className="w-8 md:w-[40px]" src={Logo} alt="Logo" />
           </Link>
         </div>
+          <div className="text-center">
+            <AuthButton/>
+          </div>
         <ul className="hidden lg:flex gap-10 text-xs">
           <li
             className={`relative ${

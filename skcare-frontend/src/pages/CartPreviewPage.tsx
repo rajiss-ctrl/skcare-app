@@ -12,7 +12,8 @@ import { useProductContext } from '../context/ProductContext';
 type PaymentMethod = 'bank' | 'credit-card' | 'apple-pay' | null;
 
 const CartPreviewPage: React.FC = () => {
-  const { cart, totalPrice, removeFromCart, updateQuantity } = useProductContext();
+  
+  const { cart, totalAmount, removeFromCart, updateQuantity } = useProductContext();
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>(null);
   const [checkedItems, setCheckedItems] = useState<string[]>([]);
   const [checkAll, setCheckAll] = useState(false);
@@ -43,19 +44,12 @@ const CartPreviewPage: React.FC = () => {
   };
 
   const handleCheckout = () => {
-    if (!selectedPayment) {
-      setError('Please select a payment method before proceeding to checkout.');
-      return;
-    }
-    if (cart.length === 0) {
-      setError('Your cart is empty. Please add items to your cart before proceeding to checkout.');
-      return;
-    }
+  
     navigate('/checkout-form');
   };
 
   // Calculate grand total
-  const grandTotal = totalPrice - discount;
+  const grandTotal = totalAmount - discount;
 
   return (
     <section className='pb-10'>
@@ -131,7 +125,7 @@ const CartPreviewPage: React.FC = () => {
           <div className=" shadow-sm border border-[#0000000D] rounded-[10px]">
             <div className="py-2 flex justify-between px-4 border-b border-[#0000000D]">
               <span className="text-lg">Sub-total</span>
-              <span className="text-lg font-semibold ">₦{totalPrice}</span>
+              <span className="text-lg font-semibold ">₦{totalAmount}</span>
             </div>
             <div className="py-2 flex justify-between px-4 border-b border-[#0000000D]">
               <span className="text-lg">Discount</span>
