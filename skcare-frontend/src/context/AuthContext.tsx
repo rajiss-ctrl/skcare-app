@@ -1,8 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode, useContext } from "react";
-import { onAuthStateChanged, signInWithPopup, signOut, User } from "firebase/auth";
+import { onAuthStateChanged, signInWithPopup, signOut, User, getIdToken } from "firebase/auth";
 import { auth, provider } from "@/firebase/config";
 
-// Define the context value types
 interface AuthContextType {
   user: User | null;
   googleSignIn: () => Promise<void>;
@@ -10,10 +9,8 @@ interface AuthContextType {
   sendUserDataToBackend: (userData: any) => Promise<void>;
 }
 
-// Create the context with a default value
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Props type for AuthProvider
 interface AuthProviderProps {
   children: ReactNode;
 }
@@ -43,7 +40,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Save user to sessionStorage
       sessionStorage.setItem("currentUser", JSON.stringify(user));
       setUser(user);
     } catch (error) {
@@ -61,28 +57,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const sendUserDataToBackend = async (userData) => {
-    console.log("Sending data to backend:", userData); // Add this to debug
+  const sendUserDataToBackend = async (userData: any) => {
     try {
-        const response = await fetch("http://localhost:5000/api/users", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(userData),
-        });
+      if (!user) throw new Error("User not authenticated");
 
-        if (!response.ok) {
-            const error = await response.json();
-            console.error("Backend Error:", error);
-            throw new Error("Failed to send user data to backend");
-        }
+      // Retrieve the ID token
+      const authToken = await getIdToken(user);
 
-        console.log("Response from backend:", await response.json());
+      const response = await fetch("http://localhost:5000/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`, // Send token in the Authorization header
+        },
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("Backend Error:", error);
+        throw new Error("Failed to send user data to backend");
+      }
+
+      console.log("Response from backend:", await response.json());
     } catch (error) {
-        console.error("Error sending data to backend:", error);
+      console.error("Error sending data to backend:", error);
     }
-};
+  };
 
   return (
     <AuthContext.Provider value={{ user, googleSignIn, googleSignOut, sendUserDataToBackend }}>

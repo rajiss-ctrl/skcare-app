@@ -1,5 +1,5 @@
 import { Routes, Route } from "react-router-dom";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 // import { lazy, Suspense } from "react";
 import LandingPage from './pages/LandingPage';
 import Layout from "./outlet/Layout";
@@ -12,6 +12,7 @@ import CheckoutForm from "./pages/Checkout";
 // import SigninSignup from "./pages/signin-signup/SigninSignup";
 
 function App() {
+  
   return (
     <>
       <Suspense fallback={<div className="">Loading....</div>}>

@@ -22,14 +22,19 @@ const NavBar = () => {
   return (
     <div className="w-full border-b py-2 px-3 lg:px-16 border-[#BFC0C2]">
       <nav className="flex items-center justify-between">
+        {/* Logo */}
         <div>
           <Link to="/">
             <img className="w-8 md:w-[40px]" src={Logo} alt="Logo" />
           </Link>
         </div>
-          <div className="text-center">
-            <AuthButton/>
-          </div>
+
+        {/* Authentication Button */}
+        <div className="text-center">
+          <AuthButton />
+        </div>
+
+        {/* Navigation Links */}
         <ul className="hidden lg:flex gap-10 text-xs">
           <li
             className={`relative ${
@@ -56,6 +61,8 @@ const NavBar = () => {
           <li className="text-gray-700 hover:text-black">Blog</li>
           <li className="text-gray-700 hover:text-black">Contact</li>
         </ul>
+
+        {/* Search Input */}
         <div className="hidden relative md:flex items-center gap-2 border text-black  border-[#BFC0C2] rounded-[8px] py-[0.20rem] text-xs md:px-2">
           <img className="w-3 md:w-5" src={Search} alt="Search Icon" />
           <input
@@ -64,6 +71,8 @@ const NavBar = () => {
             className="outline-none bg-transparent placeholder:text-gray-700"
           />
         </div>
+
+        {/* Cart and User Icons */}
         <div className="flex items-center gap-6">
           <Link to="/cartpreview" className="relative flex items-center">
             {cartItemCount > 0 && (
@@ -79,8 +88,12 @@ const NavBar = () => {
           </Link>
           <img className="w-5" src={User} alt="User" />
         </div>
+
+        {/* Mobile Navigation */}
         <MobileNav />
       </nav>
+
+      {/* Mobile Search Bar */}
       <div className="relative md:hidden mt-3 flex items-center gap-2 border border-[#BFC0C2] rounded-[8px] py-[0.20rem] text-xs p-2">
         <img className="w-3 md:w-5" src={Search} alt="Search Icon" />
         <input

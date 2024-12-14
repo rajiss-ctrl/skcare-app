@@ -5,6 +5,7 @@ import WhiteStar from '../../assets/svg/star-white.svg';
 import Cart from '../../assets/svg/cart-white.svg';
 import { useProductContext } from '@/context/ProductContext';
 import { Button } from '../ui/button';
+import { useAuth } from '@/context/AuthContext';
 
 interface Product {
   _id: string;
@@ -18,6 +19,8 @@ interface ProductListProps {
 }
 
 const ProductList: React.FC<ProductListProps> = ({ filteredProducts = [] }) => {
+  const {user} = useAuth()
+  const [loginAlert, setLoginAlert] =useState(false)
   const { products, addToCart } = useProductContext();
   const navigate = useNavigate();
 
@@ -31,8 +34,15 @@ const ProductList: React.FC<ProductListProps> = ({ filteredProducts = [] }) => {
   const paginatedProducts = displayedProducts.slice(startIndex, startIndex + itemsPerPage);
   const hasMorePages = startIndex + itemsPerPage < displayedProducts.length;
 
+  
+
+ 
   const handleAddToCart = (product: Product) => {
+    if(!user){
+      setLoginAlert(pre=>!pre)
+    }else{
     addToCart(product._id);
+    }
   };
 
   const handleProductClick = (productId: string) => {
@@ -43,8 +53,21 @@ const ProductList: React.FC<ProductListProps> = ({ filteredProducts = [] }) => {
     return <div>No products found</div>;
   }
 
+
+  const LoginAlert = ()=>{
+    return(
+      <div>
+      <div className={`${!loginAlert ? "hidden" : "flex items-center justify-center bg-black w-[200px] h-[200px]"} absolute top-0 left-0 z-50 text-white`}>
+        <Button onClick={()=>{setLoginAlert(pre=>!pre)}}>X</Button>
+        <h1>Login To add to cart</h1>
+      </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="p-4 md:p-8">
+    <div className="p-4 md:p-8 relative">
+      <LoginAlert/>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {paginatedProducts.map((product) => {
           const image = product.imageUrl || 'default-image.jpg';
@@ -74,7 +97,7 @@ const ProductList: React.FC<ProductListProps> = ({ filteredProducts = [] }) => {
                   <Button
                     className="flex items-center text-xs justify-center bg-[#4F705B] text-white py-2 rounded-lg hover:bg-[#293f31] transition"
                     onClick={(e) => {
-                      e.stopPropagation();
+                      e.stopPropagation(); 
                       handleAddToCart(product);
                     }}
                   >

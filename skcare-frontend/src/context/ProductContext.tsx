@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from './AuthContext'; // Assuming you have an AuthContext for user authentication
+import { auth } from '@/firebase/config';
 
 interface Product {
   _id: string;
@@ -51,13 +52,32 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const fetchCartFromAPI = async () => {
     if (user?.uid) {
       try {
-        const response = await axios.get(`${CART_API_URL}/${user.uid}`);
+        // Fetch the Firebase Auth Token
+        const authToken = await auth.currentUser?.getIdToken();
+        if (!authToken) {
+          throw new Error("User is not authenticated");
+        }
+  
+        // Fetch cart from the API
+        const response = await axios.get(`${CART_API_URL}/${user.uid}`, {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        });
         setCart(response.data.items || []);
       } catch (error) {
-        console.error('Error fetching cart from API:', error);
+        // Handle errors gracefully
+        if (error.response?.status === 401) {
+          console.error('Unauthorized: Please log in again');
+          // Optionally log the user out or prompt reauthentication
+        } else {
+          console.error('Error fetching cart from API:', error);
+        }
       }
     }
   };
+  
+
 
   // Save cart to the API
   const saveCartToAPI = async (updatedCart: CartItem[]) => {
@@ -90,7 +110,7 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     fetchAllProducts(); // Fetch products when the component mounts
     fetchCartFromAPI(); // Fetch user's cart if logged in
-  }, [user?.uid]);
+  }, [user?.uid,user]);
 
   // Load cart from sessionStorage on initialization
   useEffect(() => {
