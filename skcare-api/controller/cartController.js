@@ -3,6 +3,12 @@ const Carts = require("../models/Carts");
 
 exports.getCart = async (req, res) => {
   const { userId } = req.params;
+
+  // Ensure the userId matches the authenticated user's uid
+  if (req.user.uid !== userId) {
+    return res.status(403).json({ error: 'Access denied: User ID mismatch' });
+  }
+
   try {
     const cart = await Carts.findOne({ userId });
     res.status(200).json(cart || { userId, items: [] });

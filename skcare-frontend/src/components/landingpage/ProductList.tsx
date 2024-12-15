@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import BlackStar from '../../assets/svg/star.svg';
 import WhiteStar from '../../assets/svg/star-white.svg';
 import Cart from '../../assets/svg/cart-white.svg';
+import G_SignIn from '../../assets/svg/google-icon.svg'
 import { useProductContext } from '@/context/ProductContext';
 import { Button } from '../ui/button';
 import { useAuth } from '@/context/AuthContext';
@@ -57,9 +58,13 @@ const ProductList: React.FC<ProductListProps> = ({ filteredProducts = [] }) => {
   const LoginAlert = ()=>{
     return(
       <div>
-      <div className={`${!loginAlert ? "hidden" : "flex items-center justify-center bg-black w-[200px] h-[200px]"} absolute top-0 left-0 z-50 text-white`}>
-        <Button onClick={()=>{setLoginAlert(pre=>!pre)}}>X</Button>
-        <h1>Login To add to cart</h1>
+      <div className={`${!loginAlert ? "hidden" : "flex items-center justify-center gap-2 h-[50px]"} absolute top-0 left-0 z-50 text-[#7a7c80] text-xs bg-white shadow px-2 py-1 rounded-[10px]`}>
+        <Button onClick={()=>{setLoginAlert(pre=>!pre)}} className='outline-none border-none shadow-none text-xs p-0 m-0'>X</Button>
+        <div className="h-[45px] w-[1px] bg-slate-400"></div>
+        <Button className='flex items-center outline-none border-none shadow-none text-xs p-0 m-0'>
+          <span>Sign In</span> 
+          <img src={G_SignIn} alt="sign in with google" className='w-3'/>
+        </Button>
       </div>
       </div>
     )

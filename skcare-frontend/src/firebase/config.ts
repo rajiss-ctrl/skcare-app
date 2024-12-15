@@ -1,15 +1,15 @@
 import { initializeApp, FirebaseApp } from "firebase/app";
 import { getAuth, Auth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, onSnapshot, Firestore } from "firebase/firestore";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDSMrdy3c0le_PUqns3nMQSRzcFpq-h_CM",
-  authDomain: "skcare-c15e6.firebaseapp.com",
-  projectId: "skcare-c15e6",
-  storageBucket: "skcare-c15e6.firebasestorage.app",
-  messagingSenderId: "717960674805",
-  appId: "1:717960674805:web:d65211839baf7a9eb574bc"
+  apiKey: import.meta.env.VITE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGEBUCKET,
+  messagingSenderId: import.meta.env.MSG_SENDER_ID,
+  appId: import.meta.env.VITE_API_ID
 };
 
 // Initialize Firebase

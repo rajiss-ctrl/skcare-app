@@ -1,4 +1,3 @@
-import React from 'react';
 import Logo from '../assets/svg/logo.svg';
 import Search from '../assets/svg/search-icon.svg';
 import Cart from '../assets/svg/cart.svg';
