@@ -45,7 +45,7 @@ const ProductUploadForm = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-lg mx-auto p-6 bg-white shadow rounded-lg space-y-4">
+    <form onSubmit={handleSubmit} className="max-w-lg mx-auto p-6 bg-white shadow rounded-lg space-y-4 my-24">
       <div>
         <label htmlFor="name" className="block text-sm font-medium text-gray-700">
           Name

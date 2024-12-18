@@ -15,12 +15,12 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
     <ProductProvider>
-  <BrowserRouter>
-    <Routes>
-      <Route path={"/*"} element={<App />} />
-    </Routes>
-  </BrowserRouter>
-  </ProductProvider>
-  </AuthProvider>,
+      <BrowserRouter>
+        <Routes>
+          <Route path={"/*"} element={<App />} />
+        </Routes>
+      </BrowserRouter>
+    </ProductProvider>
+  </AuthProvider>
   </StrictMode>
 )

@@ -1,6 +1,5 @@
 import { Routes, Route } from "react-router-dom";
-import { Suspense, useEffect } from "react";
-// import { lazy, Suspense } from "react";
+import { lazy, Suspense } from "react";
 import LandingPage from './pages/LandingPage';
 import Layout from "./outlet/Layout";
 import Admin from "./admin/pages/Admin";
@@ -14,7 +13,7 @@ import CheckoutForm from "./pages/Checkout";
 function App() {
   
   return (
-    <>
+    <div>
       <Suspense fallback={<div className="">Loading....</div>}>
         <Routes>
           <Route path={"/"} element={<Layout />}>
@@ -24,14 +23,9 @@ function App() {
             <Route path={"/checkout-form"} element={<CheckoutForm />} />
             <Route path={"/admin"} element={<Admin />} />
           </Route>
-          {/* <Route path={"/"} element={<Layout />}>
-            <Route index element={<HomePage />} />
-          </Route> */}
-          {/* Uncomment and fix the following when you add the Error component */}
-          {/* <Route path={"*"} element={<Error />} /> */}
         </Routes>
-      </Suspense>
-    </>
+      </Suspense> 
+    </div>
   );
 }
 

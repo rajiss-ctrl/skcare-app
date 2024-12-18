@@ -7,9 +7,11 @@ import { Link, useLocation } from 'react-router-dom';
 import { useProductContext } from '../context/ProductContext'; // Import the context
 import MobileNav from './ShadMobileNav';
 import AuthButton from './AuthButton';
+import { useAuth } from '@/context/AuthContext';
 
 const NavBar = () => {
   const { cart } = useProductContext(); // Access cart from context
+  const {user} = useAuth()
   const location = useLocation();
 
   // Calculate the total cart items count
@@ -85,7 +87,13 @@ const NavBar = () => {
               className="w-5"
             />
           </Link>
-          <img className="w-5" src={User} alt="User" />
+         {
+          !user ?
+          <img className="w-5"  src={User} alt="User" /> 
+          :
+          <img className="w-5"  src={`${user.photoURL}`} alt="User" /> 
+
+         }
         </div>
 
         {/* Mobile Navigation */}

@@ -30,7 +30,7 @@ const Footer = () => {
       </div>
 
       {/* Footer Remark */}
-      <div className="footer-remark text-center text-sm text-gray-400 mt-10">
+      <div className="text-center text-sm text-gray-400 mb-0 pt-10">
         A product of Skincare System <span>© 2024</span>
       </div>
     </footer>
