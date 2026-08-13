@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { disableReactDevTools } from "@fvilers/disable-react-devtools";
 import { ProductProvider } from './context/ProductContext';
 import { AuthProvider } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
 
 if (process.env.NODE_ENV === "production") {
   disableReactDevTools();
@@ -14,6 +15,7 @@ if (process.env.NODE_ENV === "production") {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
+    <CartProvider>
     <ProductProvider>
       <BrowserRouter>
         <Routes>
@@ -21,6 +23,7 @@ createRoot(document.getElementById('root')!).render(
         </Routes>
       </BrowserRouter>
     </ProductProvider>
+      </CartProvider>
   </AuthProvider>
   </StrictMode>
 )

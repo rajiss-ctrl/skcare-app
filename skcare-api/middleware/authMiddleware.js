@@ -1,32 +1,54 @@
-const firebaseAdmin = require('../firebaseConfig');
+// middleware/authMiddleware.js
+const jwt  = require('jsonwebtoken');
+const User = require('../models/Users');
 
+/**
+ * Verifies the Bearer JWT in the Authorization header.
+ * On success, attaches the full Mongoose user document to req.user.
+ * On failure, responds with 401.
+ */
 const authMiddleware = async (req, res, next) => {
-    const authHeader = req.header('Authorization');
-    if (!authHeader) {
-      console.error('No Authorization header found');
-      return res.status(401).json({ error: 'Authorization token is required' });
+  try {
+    const header = req.headers['authorization'];
+
+    if (!header || !header.startsWith('Bearer ')) {
+      return res.status(401).json({
+        error:   'Unauthorized',
+        message: 'Authorization header missing or malformed. Expected: Bearer <token>',
+      });
     }
-  
-    const token = authHeader.replace('Bearer ', '');
-    if (!token) {
-      console.error('Token is missing in Authorization header');
-      return res.status(401).json({ error: 'Invalid Authorization format' });
-    }
-  
+
+    const token = header.split(' ')[1];
+
+    let payload;
     try {
-      const decodedToken = await firebaseAdmin.auth().verifyIdToken(token);
-      console.log('Decoded Token:', decodedToken);
-  
-      req.user = {
-        uid: decodedToken.uid,
-        email: decodedToken.email,
-      };
-      next();
-    } catch (error) {
-      console.error('Error verifying token:', error.message);
-      return res.status(401).json({ error: 'Invalid or expired token' });
+      payload = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          error:   'TokenExpired',
+          message: 'Access token has expired. Please refresh your token.',
+        });
+      }
+      return res.status(401).json({
+        error:   'InvalidToken',
+        message: 'Access token is invalid.',
+      });
     }
-  };
-    
+
+    const user = await User.findById(payload.sub);
+    if (!user) {
+      return res.status(401).json({
+        error:   'Unauthorized',
+        message: 'The account associated with this token no longer exists.',
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
 
 module.exports = authMiddleware;

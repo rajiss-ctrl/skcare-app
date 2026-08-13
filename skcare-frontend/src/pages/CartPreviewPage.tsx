@@ -1,170 +1,293 @@
+// pages/CartPreviewPage.tsx
 import React, { useState } from 'react';
-import NavBar from '../components/NavBar';
-import Trash from '../assets/svg/trash-icon.svg';
-import CCApple from '../assets/svg/la_cc-apple-pay.svg';
-import CreditCard from '../assets/svg/credit-card.svg';
-import Send from '../assets/svg/send.svg';
-import Minus from '../assets/svg/minus.svg';
-import Plus from '../assets/svg/plus.svg';
-import { useNavigate } from 'react-router-dom';
-import { useProductContext } from '../context/ProductContext';
+import NavBar    from '../components/NavBar';
+import { Link, useNavigate } from 'react-router-dom';
+import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
+import AuthModal   from '../components/AuthModal';
 
-type PaymentMethod = 'bank' | 'credit-card' | 'apple-pay' | null;
+// ─── SVG icons inlined as components (avoids broken img paths) ───────────────
 
+const TrashIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+  </svg>
+);
+
+const MinusIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+    <line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+);
+
+const PlusIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+);
+
+const CreditCardIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+  </svg>
+);
+
+const BankIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/>
+    <line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/>
+  </svg>
+);
+
+// ─── Payment method type ──────────────────────────────────────────────────────
+type PaymentMethod = 'card' | 'bank_transfer';
+
+// ─── Component ────────────────────────────────────────────────────────────────
 const CartPreviewPage: React.FC = () => {
-  
-  const { cart, totalAmount, removeFromCart, updateQuantity } = useProductContext();
-  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>(null);
-  const [checkedItems, setCheckedItems] = useState<string[]>([]);
-  const [checkAll, setCheckAll] = useState(false);
-  const [error, setError] = useState<string>('');
-  const [discount, setDiscount] = useState<number>(0); // Discount state
-
+  const { cart, cartTotal, removeFromCart, updateItemQuantity } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
-  const handleRemoveFromCart = (productId: string) => {
-    removeFromCart(productId);
-  };
+  const [showAuthModal,   setShowAuthModal]   = useState(false);
+  const [paymentMethod,   setPaymentMethod]   = useState<PaymentMethod | null>(null);
+  const [updatingId,      setUpdatingId]      = useState<string | null>(null);
+  const [removingId,      setRemovingId]      = useState<string | null>(null);
 
-  const handleCheckItem = (id: string) => {
-    if (checkedItems.includes(id)) {
-      setCheckedItems(checkedItems.filter((itemId) => itemId !== id));
-    } else {
-      setCheckedItems([...checkedItems, id]);
+  const items = cart?.items ?? [];
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  const handleQtyChange = async (productId: string, newQty: number) => {
+    if (newQty < 0) return;
+    setUpdatingId(productId);
+    try {
+      await updateItemQuantity(productId, newQty); // qty 0 removes the item
+    } finally {
+      setUpdatingId(null);
     }
   };
 
-  const handleCheckAll = () => {
-    setCheckAll(!checkAll);
-    if (!checkAll) {
-      setCheckedItems(cart.map((item) => item._id));
-    } else {
-      setCheckedItems([]);
+  const handleRemove = async (productId: string) => {
+    setRemovingId(productId);
+    try {
+      await removeFromCart(productId);
+    } finally {
+      setRemovingId(null);
     }
   };
 
   const handleCheckout = () => {
-  
-    navigate('/checkout-form');
+    if (!user) { setShowAuthModal(true); return; }
+    if (!paymentMethod) return; // button is disabled anyway
+    // Pass the selected payment method to checkout via query param
+    navigate(`/checkout-form?payment=${paymentMethod}`);
   };
 
-  // Calculate grand total
-  const grandTotal = totalAmount - discount;
-
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <section className='pb-10'>
-      <div className="hidden md:block text-center py-2 bg-[#4F705B] text-white">
-        <p>Free deliveries on all orders within Nigeria</p>
+    <section className="pb-16 min-h-screen bg-[#FAFAFA]">
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+
+      {/* Promo banner */}
+      <div className="hidden md:block text-center py-2 bg-[#4F705B] text-white text-sm font-medium">
+        Free deliveries on all orders within Nigeria
       </div>
+
       <NavBar />
-      <h1 className='text-center text-2xl font-semibold py-8'>Cart</h1>
-      <div className="flex flex-col lg:flex-row justify-between items-start">
-        <div className="w-full lg:w-3/5 py-10 px-3 lg:px-4 ">
-          {cart.length === 0 ? (
-            <h3>Your cart is empty</h3>
-          ) : (
-            <table className="w-full border border-gray-300 rounded-t-[10px]">
-              <thead>
-                <tr className='border-b border-gray-300  '>
-                  <th className='flex items-center gap-2 pl-14 py-4 '>
-                    <input
-                      type="checkbox"
-                      checked={checkAll}
-                      onChange={handleCheckAll}
-                      className="w-5 h-5"
+
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold text-gray-800 mb-8">Your Cart</h1>
+
+        {items.length === 0 ? (
+          /* ── Empty state ──────────────────────────────────────────────── */
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
+            <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-3xl">🛒</div>
+            <h2 className="text-lg font-semibold text-gray-700">Your cart is empty</h2>
+            <p className="text-sm text-gray-400">Add some products to get started.</p>
+            <Link to="/"
+              className="mt-2 px-6 py-2 rounded-lg bg-[#4F705B] text-white text-sm font-semibold hover:bg-[#3a5344] transition">
+              Continue Shopping
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-col lg:flex-row gap-8 items-start">
+
+            {/* ── LEFT: Items ─────────────────────────────────────────── */}
+            <div className="flex-1 space-y-4">
+              {/* Column headers */}
+              <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 px-4 pb-2 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <span>Product</span>
+                <span className="text-center">Quantity</span>
+                <span className="text-right">Price</span>
+                <span />
+              </div>
+
+              {items.map((item) => (
+                <div
+                  key={item.productId}
+                  className={`bg-white rounded-xl border border-gray-100 shadow-sm p-4 transition-opacity ${
+                    removingId === item.productId ? 'opacity-40 pointer-events-none' : ''
+                  }`}
+                >
+                  <div className="grid grid-cols-[auto_1fr] md:grid-cols-[auto_1fr_auto_auto_auto] gap-4 items-center">
+
+                    {/* Thumbnail */}
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      className="w-16 h-16 rounded-lg object-cover bg-gray-100 flex-shrink-0"
                     />
-                    <span className='text-xs font-medium'>Product</span>
-                  </th>
-                  <th className='text-xs font-medium'>Quantity</th>
-                  <th className='text-xs font-medium'>Price</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cart.map((item) => (
-                  <tr key={item._id} className=' border-b border-[#0000000D]'>
-                    <td className='flex gap-2 py-4 pl-14'>
-                      <input
-                        type="checkbox"
-                        checked={checkedItems.includes(item._id)}
-                        onChange={() => handleCheckItem(item._id)}
-                        className="w-5 h-5"
-                      />
-                      <div className="flex gap-2">
-                        <img src={item.imageUrl} alt={item.name} className='w-[60px] rounded-[5px]' />
-                        <div className="flex flex-col">
-                          <span className='text-[#000000B2] text-sm lg:text-[16px] bold'>{item.name}</span>
-                          <span className='text-[#000000B2] text-sm lg:text-[16px] font-normal'>Size</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className=''>
-                      <div className="flex justify-between items-center p-2 border border-[#0000000D] rounded-[5px]">
-                        <button onClick={() => updateQuantity(item._id, item.cartQuantity - 1)} className='text-[16px] font-bold'>
-                          <img src={Minus} alt="-" />
-                        </button>
-                        <span>{item.cartQuantity}</span>
-                        <button onClick={() => updateQuantity(item._id, item.cartQuantity + 1)} className='text-[16px] font-bold'>
-                          <img src={Plus} alt="+" />
-                        </button>
-                      </div>
-                      <button onClick={() => handleRemoveFromCart(item._id)} className="text-[#000000] mt-1 flex items-center justify-center w-full gap-[2px]">
-                        <img src={Trash} alt="trash icon" className='w-[16px]' />
-                        <p className='text-xs'>Delete</p>
+
+                    {/* Name + unit price */}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">₦{item.price.toLocaleString()} each</p>
+                    </div>
+
+                    {/* Quantity stepper */}
+                    <div className="flex items-center gap-1 border border-gray-200 rounded-lg overflow-hidden">
+                      <button
+                        onClick={() => handleQtyChange(item.productId, item.quantity - 1)}
+                        disabled={!!updatingId}
+                        aria-label="Decrease quantity"
+                        className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition disabled:opacity-40"
+                      >
+                        <MinusIcon />
                       </button>
-                    </td>
-                    <td className='flex items-center justify-center'>
-                      ₦{item.price * item.cartQuantity}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-        <div className="w-full lg:w-[35%] pl-3 pr-3 lg:pr-8">
-          <div className=" shadow-sm border border-[#0000000D] rounded-[10px]">
-            <div className="py-2 flex justify-between px-4 border-b border-[#0000000D]">
-              <span className="text-lg">Sub-total</span>
-              <span className="text-lg font-semibold ">₦{totalAmount}</span>
+                      <span className="w-8 text-center text-sm font-medium text-gray-800">
+                        {updatingId === item.productId ? '…' : item.quantity}
+                      </span>
+                      <button
+                        onClick={() => handleQtyChange(item.productId, item.quantity + 1)}
+                        disabled={!!updatingId}
+                        aria-label="Increase quantity"
+                        className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition disabled:opacity-40"
+                      >
+                        <PlusIcon />
+                      </button>
+                    </div>
+
+                    {/* Line total */}
+                    <p className="text-sm font-bold text-gray-800 text-right min-w-[80px]">
+                      ₦{(item.price * item.quantity).toLocaleString()}
+                    </p>
+
+                    {/* Remove */}
+                    <button
+                      onClick={() => handleRemove(item.productId)}
+                      disabled={!!removingId}
+                      aria-label={`Remove ${item.name}`}
+                      className="text-gray-300 hover:text-red-500 transition disabled:opacity-40 flex-shrink-0"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Continue shopping link */}
+              <Link to="/" className="inline-flex items-center gap-1 text-sm text-[#4F705B] hover:underline mt-2">
+                ← Continue Shopping
+              </Link>
             </div>
-            <div className="py-2 flex justify-between px-4 border-b border-[#0000000D]">
-              <span className="text-lg">Discount</span>
-              <span className="text-lg font-semibold ">
-                ₦{discount > 0 ? discount : '0000'}
-              </span>
-            </div>
-            <div className="py-2 flex justify-between px-4 border-b border-[#0000000D]">
-              <span className="text-lg">Grand total</span>
-              <span className="text-lg font-semibold ">
-                ₦{grandTotal > 0 ? grandTotal : '0000'}
-              </span>
-            </div>
-            <div className="pt-[80px] pb-2 flex justify-center items-center border-b border-[#0000000D]">
-              <span className="text-lg">Mode of payment</span>
-            </div>
-            <div className="py-2 flex hover:bg-[#E4E8E74D] justify-between px-4 hover:border-t hover:boder-[2px solid] cursor-pointer border-b border-[#0000000D]">
-              <span className="text-lg">Bank Transfer</span>
-              <img src={Send} alt="send icon" />
-            </div>
-            <div className="py-2 flex hover:bg-[#E4E8E74D] justify-between px-4 hover:border-t hover:boder-[2px solid] cursor-pointer border-b border-[#0000000D]">
-              <span className="text-lg">Credit Card</span>
-              <img src={CreditCard} alt="credit card icon" />
-            </div>
-            <div className="py-2 flex hover:bg-[#E4E8E74D] justify-between px-4 hover:border-t hover:boder-[2px solid] cursor-pointer border-b border-[#0000000D]">
-              <span className="text-lg">Apple Pay</span>
-              <img src={CCApple} alt="apple pay icon" />
-            </div>
-            {error && <div className="text-sm py-2">{error}</div>}
-            <div className="py-6 px-10">
+
+            {/* ── RIGHT: Order summary ─────────────────────────────────── */}
+            <div className="w-full lg:w-[360px] flex-shrink-0 space-y-4">
+
+              {/* Totals card */}
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                <h2 className="text-base font-bold text-gray-800 mb-4">Order Summary</h2>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Subtotal ({items.reduce((s, i) => s + i.quantity, 0)} items)</span>
+                    <span className="font-medium text-gray-800">₦{cartTotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Delivery</span>
+                    <span className="font-semibold text-[#4F705B]">Free</span>
+                  </div>
+                  <div className="border-t border-gray-100 pt-3 flex justify-between font-bold text-gray-900 text-base">
+                    <span>Total</span>
+                    <span>₦{cartTotal.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment method card */}
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                <h2 className="text-base font-bold text-gray-800 mb-1">Payment Method</h2>
+                <p className="text-xs text-gray-400 mb-4">Select how you'd like to pay</p>
+
+                <div className="space-y-3">
+
+                  {/* Card payment — active */}
+                  <button
+                    onClick={() => setPaymentMethod('card')}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-sm font-medium transition ${
+                      paymentMethod === 'card'
+                        ? 'border-[#4F705B] bg-[#f0f7f3] text-[#4F705B]'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-md ${paymentMethod === 'card' ? 'bg-[#4F705B] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                      <CreditCardIcon />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-semibold">Card Payment</p>
+                      <p className="text-xs text-gray-400 font-normal">Debit / Credit card</p>
+                    </div>
+                    {/* Radio indicator */}
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      paymentMethod === 'card' ? 'border-[#4F705B]' : 'border-gray-300'
+                    }`}>
+                      {paymentMethod === 'card' && <div className="w-2 h-2 rounded-full bg-[#4F705B]" />}
+                    </div>
+                  </button>
+
+                  {/* Bank transfer — coming soon */}
+                  <div
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-gray-100 bg-gray-50 text-sm cursor-not-allowed opacity-50"
+                    title="Bank transfer coming soon"
+                    aria-disabled="true"
+                  >
+                    <div className="p-1.5 rounded-md bg-gray-200 text-gray-400">
+                      <BankIcon />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-semibold text-gray-400">Bank Transfer</p>
+                      <p className="text-xs text-gray-400 font-normal">Coming soon</p>
+                    </div>
+                    <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">Soon</span>
+                  </div>
+
+                </div>
+
+                {/* Selection hint */}
+                {!paymentMethod && (
+                  <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
+                    <span>⚠</span> Please select a payment method to continue.
+                  </p>
+                )}
+              </div>
+
+              {/* Checkout button */}
               <button
-                className="w-full py-2 rounded-[8px] bg-[#4F705B] text-white font-bold"
                 onClick={handleCheckout}
+                disabled={items.length === 0 || !paymentMethod}
+                className="w-full py-4 rounded-xl bg-[#4F705B] text-white font-bold text-sm hover:bg-[#3a5344] active:scale-[0.98] transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
               >
-                Proceed to checkout
+                Proceed to Checkout
+                <span className="ml-2 text-[#a8d5b5]">→</span>
               </button>
+
+              {/* Security note */}
+              <p className="text-center text-xs text-gray-400 flex items-center justify-center gap-1">
+                🔒 Payments are secured by Flutterwave
+              </p>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </section>
   );

@@ -1,53 +1,37 @@
-import { signInWithPopup, signOut } from 'firebase/auth';
-import { auth, provider } from '@/firebase/config';
-import { Button } from './ui/button';
+// components/AuthButton.tsx
+import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import G_SignIn from '../assets/svg/google-icon.svg'
+import { Button } from './ui/button';
+import AuthModal from './AuthModal';
 
+const AuthButton = () => {
+  const { user, signOut } = useAuth();
+  const [showModal, setShowModal] = useState(false);
 
-
-  
-  const AuthButton = () => {
-const {user} = useAuth()
-  
-    const handleSignIn = async () => {
-      try {
-        await signInWithPopup(auth, provider);
-        console.log('User signed in');
-      } catch (error) {
-        console.error('Sign-in error:', error);
-      }
-    };
-  
-    const handleSignOut = async () => {
-      try {
-        await signOut(auth);
-        console.log('User signed out');
-      } catch (error) {
-        console.error('Sign-out error:', error);
-      }
-    };
-  
-  
+  if (user) {
     return (
-      <div>
-        <Button
-          onClick={!user ? handleSignIn : handleSignOut}
-          className='text-xs text-black' 
-        >
-          <img src={G_SignIn} alt="google sign in" />
-          <span>{!user ? "Sign In With Google" : "Sign Out"}</span>
-        </Button>
-        {/* <button
-          onClick={handleSignOut}
-          className="bg-red-500 text-white px-4 py-2 rounded-md ml-4"
-        >
-          Sign Out
-        </button> */}
-  
-    </div>
+      <Button
+        onClick={signOut}
+        variant="outline"
+        className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+      >
+        Sign Out
+      </Button>
     );
-  };
-  
-  export default AuthButton;
-  
+  }
+
+  return (
+    <>
+      <Button
+        onClick={() => setShowModal(true)}
+        className="text-xs bg-[#4F705B] hover:bg-[#3a5344] text-white"
+      >
+        Sign In
+      </Button>
+
+      {showModal && <AuthModal onClose={() => setShowModal(false)} />}
+    </>
+  );
+};
+
+export default AuthButton;
