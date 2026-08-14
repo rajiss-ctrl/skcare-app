@@ -9,6 +9,11 @@ interface AuthModalProps {
   onClose: () => void;
 }
 
+// Guest credentials come from env — set in .env.production for deployed builds
+// These match the seeded guest account created by: npm run seed:guest
+const GUEST_EMAIL    = import.meta.env.VITE_GUEST_EMAIL    || 'guest@skcare.com';
+const GUEST_PASSWORD = import.meta.env.VITE_GUEST_PASSWORD || 'Guest@skcare1';
+
 const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   const { signIn, signUp, guestSignIn } = useAuth();
 
@@ -20,7 +25,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   const [loading,  setLoading]  = useState(false);
 
   const reset = () => { setError(''); setName(''); setEmail(''); setPassword(''); };
-
   const handleTabChange = (t: Tab) => { setTab(t); reset(); };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,6 +45,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     }
   };
 
+  // Guest button — calls the backend /api/auth/guest endpoint which signs in
+  // with the seeded shared guest account. No new document is created.
   const handleGuest = async () => {
     setError('');
     setLoading(true);
@@ -55,17 +61,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   };
 
   return (
-    /* Backdrop */
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
       onClick={onClose}
     >
-      {/* Modal card — stop click propagation so clicking inside doesn't close */}
       <div
         className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close button */}
+        {/* Close */}
         <button
           onClick={onClose}
           className="absolute top-3 right-4 text-gray-400 hover:text-gray-600 text-xl leading-none"
@@ -98,7 +102,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
               placeholder="Full name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full border border-gray-300  rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4F705B]"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4F705B]"
             />
           )}
           <input
@@ -118,7 +122,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4F705B]"
           />
 
-          {/* Password hint on signup */}
           {tab === 'signup' && (
             <p className="text-xs text-gray-400">
               Min 8 chars, one uppercase, one number, one special character.
@@ -145,15 +148,23 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
-        {/* Guest */}
-        <Button
-          onClick={handleGuest}
-          disabled={loading}
-          variant="outline"
-          className="w-full text-sm rounded-lg border-gray-300 text-gray-600 hover:bg-gray-50"
-        >
-          Continue as Guest
-        </Button>
+        {/* Guest button — pre-filled with guest credentials, click to sign in */}
+        <div className="space-y-2">
+          <Button
+            onClick={handleGuest}
+            disabled={loading}
+            variant="outline"
+            className="w-full text-sm rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50 flex flex-col items-center gap-0.5 h-auto py-2.5"
+          >
+            <span className="font-semibold">Continue as Guest</span>
+            <span className="text-[10px] text-gray-400 font-normal">
+              {GUEST_EMAIL} · {GUEST_PASSWORD}
+            </span>
+          </Button>
+          <p className="text-center text-[10px] text-gray-400">
+            Guest sessions last 2 hours. You can create a full account at checkout.
+          </p>
+        </div>
       </div>
     </div>
   );

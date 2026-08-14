@@ -1,8 +1,7 @@
 // controller/authController.js
-const crypto = require('crypto');
-const jwt    = require('jsonwebtoken');
-const User   = require('../models/Users');
-const Cart   = require('../models/Carts');
+const jwt  = require('jsonwebtoken');
+const User = require('../models/Users');
+const Cart = require('../models/Carts');
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
 
@@ -124,29 +123,46 @@ const signin = async (req, res, next) => {
 
 /**
  * POST /api/auth/guest
- * Creates a temporary guest account with a 2-hour access token.
- * No refresh cookie — guests have short sessions by design.
+ * Signs in with the shared seeded guest account.
+ * No new documents are created — the frontend uses fixed credentials
+ * from the seed script. The guest can convert at checkout.
  */
 const guestSignin = async (req, res, next) => {
   try {
-    const guestId    = crypto.randomBytes(20).toString('hex');
-    const guestEmail = `guest_${guestId}@skcare.internal`;
+    const guestEmail    = process.env.GUEST_EMAIL?.toLowerCase();
+    const guestPassword = process.env.GUEST_PASSWORD;
 
-    const user = await User.create({
-      email:      guestEmail,
-      name:       'Guest',
-      isGuest:    true,
-      guestToken: guestId,
-    });
+    if (!guestEmail || !guestPassword) {
+      return res.status(503).json({
+        message: 'Guest account is not configured. Please run: npm run seed:guest',
+      });
+    }
 
+    const user = await User.findOne({ email: guestEmail, isGuest: true })
+                           .select('+password +refreshTokens');
+
+    if (!user) {
+      return res.status(503).json({
+        message: 'Guest account not found. Please run: npm run seed:guest',
+      });
+    }
+
+    const valid = await user.comparePassword(guestPassword);
+    if (!valid) {
+      return res.status(503).json({
+        message: 'Guest account credentials mismatch. Re-run: npm run seed:guest',
+      });
+    }
+
+    // Issue a short-lived access token — guests don't get a refresh token
     const accessToken = jwt.sign(
       { sub: user._id.toString(), isGuest: true },
       process.env.JWT_SECRET,
       { expiresIn: '2h' }
     );
 
-    return res.status(201).json({
-      user:        user.toPublicJSON(),
+    return res.status(200).json({
+      user:  user.toPublicJSON(),
       accessToken,
     });
   } catch (err) {

@@ -187,10 +187,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // ── Guest Sign In ───────────────────────────────────────────────────────────
+  // Signs in with the shared seeded guest account.
+  // The backend returns a 2-hour access token — no refresh token for guests.
   const guestSignIn = async () => {
     const data = await apiPost('/api/auth/guest');
-    // Guests get only an access token (no refresh)
-    saveTokens(data.accessToken);
+    saveTokens(data.accessToken); // no refresh token for guests
     setAccessToken(data.accessToken);
     setUser(data.user);
   };
