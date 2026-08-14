@@ -5,10 +5,11 @@
 
 
 
+
 const HomePage = () => {
   return (
     <main className='overflow-hidden bg-[#F9FBFF]'>
-      <Header/>
+      {/* <Header/> */}
       {/* <AboutUs/>
       <ExploreResort/>
       <Testimony/>
