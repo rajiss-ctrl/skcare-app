@@ -33,21 +33,22 @@ const pruneRefreshTokens = (user) => {
  * SameSite=Strict prevents CSRF attacks.
  */
 const setRefreshCookie = (res, token) => {
+  const isProd = process.env.NODE_ENV === 'production';
   res.cookie('skcare_rt', token, {
-    httpOnly: true,                                     // JS cannot access
-    secure:   process.env.NODE_ENV === 'production',    // HTTPS only in prod
-    sameSite: 'strict',                                 // CSRF protection
-    maxAge:   7 * 24 * 60 * 60 * 1000,                 // 7 days in ms
-    path:     '/api/auth',                              // only sent to auth routes
+    httpOnly: true,
+    secure:   true,                           // always true — Render uses HTTPS
+    sameSite: isProd ? 'none' : 'strict',     // 'none' required for cross-origin (Vercel → Render)
+    maxAge:   7 * 24 * 60 * 60 * 1000,
+    path:     '/api/auth',
   });
 };
 
-/** Clears the refresh cookie on sign-out. */
 const clearRefreshCookie = (res) => {
+  const isProd = process.env.NODE_ENV === 'production';
   res.clearCookie('skcare_rt', {
     httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure:   true,
+    sameSite: isProd ? 'none' : 'strict',
     path:     '/api/auth',
   });
 };

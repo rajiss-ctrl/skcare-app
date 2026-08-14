@@ -26,18 +26,19 @@ const app = express();
 
 // ─── Security & CORS ────────────────────────────────────────────────────
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',');
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',').map(o => o.trim());
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, curl)
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      // Allow requests with no origin (mobile apps, Postman, server-to-server)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
       callback(new Error(`CORS: origin ${origin} is not allowed.`));
     },
-    methods:          ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders:   ['Authorization', 'Content-Type'],
-    credentials:      true,
+    methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type'],
+    credentials:    true, // required for httpOnly refresh token cookie
   })
 );
 

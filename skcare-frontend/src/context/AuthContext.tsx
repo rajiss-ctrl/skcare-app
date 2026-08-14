@@ -76,9 +76,10 @@ const apiPost = async (path: string, body?: object, token?: string | null) => {
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${API}${path}`, {
-    method:  'POST',
+    method:      'POST',
     headers,
-    body:    body ? JSON.stringify(body) : undefined,
+    credentials: 'include', // send/receive httpOnly refresh token cookie cross-origin
+    body:        body ? JSON.stringify(body) : undefined,
   });
 
   const json = await res.json();
@@ -116,7 +117,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!isTokenExpired(stored)) {
         try {
           const res = await fetch(`${API}/api/users/me`, {
-            headers: { Authorization: `Bearer ${stored}` },
+            headers:     { Authorization: `Bearer ${stored}` },
+            credentials: 'include',
           });
           if (res.ok) {
             const { user: profile } = await res.json();
@@ -152,7 +154,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // Re-fetch profile with new token
       const res = await fetch(`${API}/api/users/me`, {
-        headers: { Authorization: `Bearer ${data.accessToken}` },
+        headers:     { Authorization: `Bearer ${data.accessToken}` },
+        credentials: 'include',
       });
       if (res.ok) {
         const { user: profile } = await res.json();
