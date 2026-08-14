@@ -97,7 +97,8 @@ const signin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email, isGuest: false }).select('+password +refreshTokens');
+    // Allow both regular users and the shared guest account
+    const user = await User.findOne({ email }).select('+password +refreshTokens');
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }

@@ -187,11 +187,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // ── Guest Sign In ───────────────────────────────────────────────────────────
-  // Signs in with the shared seeded guest account.
-  // The backend returns a 2-hour access token — no refresh token for guests.
+  // Signs in directly with the seeded guest credentials stored in frontend env vars.
+  // Calls the normal signin endpoint — no special /api/auth/guest endpoint needed.
+  // The guest account must be seeded first: npm run seed:guest (in skcare-api)
   const guestSignIn = async () => {
-    const data = await apiPost('/api/auth/guest');
-    saveTokens(data.accessToken); // no refresh token for guests
+    const guestEmail    = import.meta.env.VITE_GUEST_EMAIL    || 'guest@skcare.com';
+    const guestPassword = import.meta.env.VITE_GUEST_PASSWORD || 'Guest@skcare1';
+    // Sign in exactly like a normal user — guest account just has isGuest:true in DB
+    const data = await apiPost('/api/auth/signin', {
+      email:    guestEmail,
+      password: guestPassword,
+    });
+    saveTokens(data.accessToken, data.refreshToken);
     setAccessToken(data.accessToken);
     setUser(data.user);
   };

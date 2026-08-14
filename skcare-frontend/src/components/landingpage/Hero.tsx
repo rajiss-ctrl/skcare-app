@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 
 const Hero = () => {
   return (
-    <section className="bg-[#EFF0F2] text-white font-sans">
+    <section className="bg-[#EFF0F2] text-white font-sans overflow-hidden">
       {/* CTA Remark for Mobile */}
       <div className="  flex items-center pt-10 md:pt-0 justify-center">
         <p className='bg-[#4F705B] w-full text-center text-white text-xm md:text-sm py-2 leading-[21.6px] font-medium font-[Satoshi]'>
