@@ -33,12 +33,15 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, Postman, server-to-server)
       if (!origin) return callback(null, true);
+      // Allow exact matches from ALLOWED_ORIGINS env var
       if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Allow all Vercel preview deployment URLs for this project
+      if (origin.match(/^https:\/\/skcare-.*\.vercel\.app$/)) return callback(null, true);
       callback(new Error(`CORS: origin ${origin} is not allowed.`));
     },
     methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
-    credentials:    true, // required for httpOnly refresh token cookie
+    credentials:    true,
   })
 );
 
