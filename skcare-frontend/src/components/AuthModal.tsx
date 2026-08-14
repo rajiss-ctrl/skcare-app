@@ -98,7 +98,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
               placeholder="Full name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full border border-gray-300 text-[#000000] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4F705B]"
+              className="w-full border border-gray-300  rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4F705B]"
             />
           )}
           <input

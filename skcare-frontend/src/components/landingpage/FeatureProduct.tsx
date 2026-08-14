@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { CarouselPlugin } from './Carousel';
 import Img1 from '../../assets/svg/slide1.svg';
 import Img2 from '../../assets/svg/slide2.svg';

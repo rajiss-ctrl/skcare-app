@@ -24,7 +24,7 @@ interface ProductListProps {
 const ProductList: React.FC<ProductListProps> = ({ filteredProducts = [] }) => {
   const { user, guestSignIn }                 = useAuth();
   const { products, isLoading, fetchError }   = useProductContext();
-  const { cart, addToCart, cartItemCount }    = useCart();
+  const { addToCart, cartItemCount }    = useCart();
 
   const navigate = useNavigate();
   const location = useLocation();

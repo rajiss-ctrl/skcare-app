@@ -59,7 +59,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, getToken, accessToken } = useAuth();
+  const { getToken, accessToken } = useAuth();
   const [cart, setCart]    = useState<Cart | null>(null);
 
   /** Authenticated fetch helper */
