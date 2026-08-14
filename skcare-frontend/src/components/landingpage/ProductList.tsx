@@ -20,7 +20,7 @@ interface ProductListProps {
   filteredProducts?: Product[];
 }
 
-const ProductList: React.FC<ProductListProps> = ({ filteredProducts = [] }) => {
+const ProductList: React.FC<ProductListProps> = ({ filteredProducts }) => {
   const { user, guestSignIn }               = useAuth();
   const { products, isLoading, fetchError } = useProductContext();
   const { addToCart, cartItemCount }        = useCart();
@@ -31,8 +31,9 @@ const ProductList: React.FC<ProductListProps> = ({ filteredProducts = [] }) => {
   const [addingId,    setAddingId]    = useState<string | null>(null);
   const [isAtTop,     setIsAtTop]     = useState(true);
 
-  const itemsPerPage      = 8;
-  const displayed         = filteredProducts.length > 0 ? filteredProducts : products;
+  const itemsPerPage = 8;
+  // Use filteredProducts when provided (search/category), otherwise use all products
+  const displayed    = filteredProducts ?? products;
   const startIndex        = (currentPage - 1) * itemsPerPage;
   const paginated         = displayed.slice(startIndex, startIndex + itemsPerPage);
   const hasMore           = startIndex + itemsPerPage < displayed.length;
@@ -101,7 +102,7 @@ const ProductList: React.FC<ProductListProps> = ({ filteredProducts = [] }) => {
   }
 
   return (
-    <div className="w-full px-4 md:px-8 lg:px-16 py-6 relative">
+    <div className="w-full max-w-full px-3 sm:px-4 md:px-8 lg:px-16 py-6 relative overflow-x-hidden">
 
       {/* ── Floating cart badge ─────────────────────────────────────── */}
       {cartItemCount > 0 && (
@@ -195,8 +196,8 @@ const ProductList: React.FC<ProductListProps> = ({ filteredProducts = [] }) => {
                   <span className="text-[10px] text-gray-400 ml-1">4.0</span>
                 </div>
 
-                {/* Buttons — stack on very small screens, row on sm+ */}
-                <div className="mt-auto flex flex-col xs:flex-row gap-2">
+                {/* Buttons — always stacked on mobile, row on sm+ */}
+                <div className="mt-auto flex flex-col sm:flex-row gap-1.5 sm:gap-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleAddToCart(product); }}
                     disabled={loading}

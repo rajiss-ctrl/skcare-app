@@ -76,7 +76,7 @@ const AllProducts = () => {
   const isFiltering = query !== '' || activeCategory !== ALL_LABEL;
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA]">
+    <div className="min-h-screen bg-[#FAFAFA] overflow-x-hidden">
       <NavBar />
 
       {/* ── Page header ───────────────────────────────────────────────── */}
@@ -220,7 +220,7 @@ const AllProducts = () => {
 
       {/* ── Product list ──────────────────────────────────────────────── */}
       {(resultCount > 0 || isLoading) && (
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full overflow-x-hidden">
           <ProductList filteredProducts={isFiltering ? filteredProducts : undefined} />
         </div>
       )}
