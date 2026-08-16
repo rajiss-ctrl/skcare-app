@@ -48,17 +48,17 @@ const TOKEN_KEY   = 'skcare_access_token';
 const REFRESH_KEY = 'skcare_refresh_token';
 
 const saveTokens = (access: string, refresh?: string) => {
-  localStorage.setItem(TOKEN_KEY, access);
-  if (refresh) localStorage.setItem(REFRESH_KEY, refresh);
+  sessionStorage.setItem(TOKEN_KEY, access);
+  if (refresh) sessionStorage.setItem(REFRESH_KEY, refresh);
 };
 
 const clearTokens = () => {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(REFRESH_KEY);
 };
 
-const getStoredToken   = () => localStorage.getItem(TOKEN_KEY);
-const getRefreshToken  = () => localStorage.getItem(REFRESH_KEY);
+const getStoredToken   = () => sessionStorage.getItem(TOKEN_KEY);
+const getRefreshToken  = () => sessionStorage.getItem(REFRESH_KEY);
 
 /** Returns true if the JWT is expired (or will expire in the next 30 s). */
 const isTokenExpired = (token: string): boolean => {
@@ -113,7 +113,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const stored = getStoredToken();
       if (!stored) { setIsLoading(false); return; }
 
-      // If the access token is still valid, fetch the user profile
       if (!isTokenExpired(stored)) {
         try {
           const res = await fetch(`${API}/api/users/me`, {
@@ -122,17 +121,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
           if (res.ok) {
             const { user: profile } = await res.json();
+
+            // If restoring a guest session, clear their cart first —
+            // this handles the case where they closed the tab and came back
+            if (profile.isGuest) {
+              await fetch(`${API}/api/auth/clear-guest-cart`, {
+                method:      'POST',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization:  `Bearer ${stored}`,
+                },
+              }).catch(() => {});
+            }
+
             setUser(profile);
             setAccessToken(stored);
           } else {
-            // Token rejected — try refresh
             await attemptRefresh();
           }
         } catch {
           clearTokens();
         }
       } else {
-        // Expired — try to silently refresh
         await attemptRefresh();
       }
 
@@ -141,6 +152,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     restore();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Clear guest cart on tab/browser close ────────────────────────────────
+  useEffect(() => {
+    const handleUnload = () => {
+      const token      = getStoredToken();
+      const isGuestNow = user?.isGuest ?? false;
+      if (!token || !isGuestNow) return;
+
+      // sendBeacon fires reliably on tab close and doesn't block the unload.
+      // We include the token in the body because sendBeacon can't set headers.
+      const url  = `${API}/api/auth/clear-guest-cart`;
+      const blob = new Blob(
+        [JSON.stringify({ token })],
+        { type: 'application/json' }
+      );
+      navigator.sendBeacon(url, blob);
+
+      // Clear tokens locally so the session doesn't restore on next visit
+      clearTokens();
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [user]);
 
   // ── Silent token refresh ────────────────────────────────────────────────────
   const attemptRefresh = useCallback(async (): Promise<boolean> => {
@@ -203,18 +238,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(data.user);
   };
 
-  // ── Convert Guest → Real Account ────────────────────────────────────────────
+  // ── Convert Guest → New Real Account ───────────────────────────────────────
   /**
    * Called at checkout when a guest provides real credentials.
    *
-   * Case A — email is fresh:
-   *   The guest document is promoted in-place (same _id, cart retained).
-   *   New full tokens are issued. User is logged in as their real account.
+   * Creates a BRAND NEW user account. The shared guest account is NEVER touched.
+   *
+   * Case A — fresh email:
+   *   New account created, guest cart transferred, guest cart cleared.
+   *   New account tokens issued. User is signed in as the new real account.
    *
    * Case B — email already registered:
-   *   Guest cart is merged into the existing account's cart on the server.
-   *   Guest session is deleted. Returns { cartMerged: true } so the
-   *   caller can show a "please sign in" message.
+   *   Guest cart merged into existing account's cart, guest cart cleared.
+   *   Returns { cartMerged: true } so caller can show "please sign in".
    */
   const convertGuest = async (
     email: string,
@@ -223,8 +259,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   ): Promise<{ cartMerged?: boolean }> => {
     const token = getStoredToken();
     try {
-      const data = await apiPost('/api/auth/convert', { email, password, name }, token);
-      // Success — replace guest session with real account tokens
+      const data = await apiPost('/api/auth/register-from-guest', { email, password, name }, token);
+      // Success — sign out guest session, sign in as new real account
       clearTokens();
       saveTokens(data.accessToken, data.refreshToken);
       setAccessToken(data.accessToken);
@@ -233,7 +269,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: unknown) {
       const e = err as Error & { cartMerged?: boolean; status?: number };
       if (e.status === 409 && e.cartMerged) {
-        // Email already exists — cart was merged, guest session deleted
+        // Email already exists — cart was merged into existing account, guest cart cleared
+        // Sign out guest session — user needs to sign in with their existing account
         clearTokens();
         setUser(null);
         setAccessToken(null);
@@ -246,10 +283,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // ── Sign Out ────────────────────────────────────────────────────────────────
   const signOut = async () => {
     const token   = getStoredToken();
-    const refresh = getRefreshToken();
+    const isGuest = user?.isGuest ?? false;
     try {
       if (token) {
-        await apiPost('/api/auth/signout', { refreshToken: refresh }, token);
+        // If guest — clear their cart on the server before signing out
+        if (isGuest) {
+          await apiPost('/api/auth/clear-guest-cart', undefined, token).catch(() => {});
+        }
+        await apiPost('/api/auth/signout', undefined, token);
       }
     } catch {
       // Sign out locally even if the server call fails

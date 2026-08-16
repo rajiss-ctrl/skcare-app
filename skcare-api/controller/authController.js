@@ -172,38 +172,51 @@ const guestSignin = async (req, res, next) => {
 };
 
 /**
- * POST /api/auth/convert
- * Converts a guest session into a permanent registered account.
+ * POST /api/auth/register-from-guest
+ * Called at checkout when a guest wants to create a real account.
  *
- * Case A — email already registered: merge cart, delete guest, return 409+cartMerged.
- * Case B — fresh email: promote guest doc in-place, issue full tokens.
+ * The shared guest account is NEVER modified.
+ * This endpoint:
+ *  1. Creates a brand new user account with the provided credentials.
+ *  2. Copies the guest's cart items into a new cart for the real account.
+ *  3. Clears the guest's cart (does NOT delete the guest account).
+ *  4. Issues full tokens for the new real account.
  *
- * Returns: { user, accessToken } — refresh token set as httpOnly cookie (Case B only)
+ * If the email is already registered:
+ *  - Returns 409 with cartMerged:true
+ *  - Guest cart items are merged into the existing account's cart
+ *  - Guest cart is cleared
+ *  - Frontend should redirect to sign-in
+ *
+ * Requires: valid guest Bearer token (so we know whose cart to transfer).
+ * Body: { email, password, name }
  */
-const convertGuest = async (req, res, next) => {
+const registerFromGuest = async (req, res, next) => {
   try {
     const { email, password, name } = req.body;
-
-    if (!req.user.isGuest) {
-      return res.status(400).json({ message: 'This account is already a full account.' });
-    }
-
     const guestUserId = req.user._id;
 
-    // ── Case A: email belongs to an existing real account ────────────────────
+    if (!req.user.isGuest) {
+      return res.status(400).json({ message: 'This endpoint is only for guest sessions.' });
+    }
+
+    // ── Fetch the guest cart before doing anything ────────────────────────────
+    const guestCart = await Cart.findOne({ userId: guestUserId });
+    const guestItems = guestCart?.items || [];
+
+    // ── Case A: email already registered ─────────────────────────────────────
     const existingAccount = await User.findOne({
-      email,
+      email: email.toLowerCase(),
       isGuest: false,
-      _id:     { $ne: guestUserId },
     });
 
     if (existingAccount) {
-      const guestCart    = await Cart.findOne({ userId: guestUserId });
-      const existingCart = await Cart.findOne({ userId: existingAccount._id });
+      // Transfer cart items to existing account
+      if (guestItems.length > 0) {
+        let existingCart = await Cart.findOne({ userId: existingAccount._id });
 
-      if (guestCart && guestCart.items.length > 0) {
         if (existingCart) {
-          for (const guestItem of guestCart.items) {
+          for (const guestItem of guestItems) {
             const match = existingCart.items.find(
               (i) => i.productId.toString() === guestItem.productId.toString()
             );
@@ -215,14 +228,19 @@ const convertGuest = async (req, res, next) => {
           }
           await existingCart.save();
         } else {
-          guestCart.userId    = existingAccount._id;
-          guestCart.userEmail = existingAccount.email;
-          await guestCart.save();
+          await Cart.create({
+            userId:    existingAccount._id,
+            userEmail: existingAccount.email,
+            items:     guestItems,
+          });
         }
       }
 
-      await Cart.deleteOne({ userId: guestUserId });
-      await User.findByIdAndDelete(guestUserId);
+      // Clear guest cart — do NOT delete the guest account
+      if (guestCart) {
+        guestCart.items = [];
+        await guestCart.save();
+      }
 
       return res.status(409).json({
         message:    'That email is already registered. Your cart items have been saved. Please sign in.',
@@ -230,29 +248,43 @@ const convertGuest = async (req, res, next) => {
       });
     }
 
-    // ── Case B: fresh email — promote the guest document ─────────────────────
-    req.user.email      = email;
-    req.user.name       = name?.trim() || 'User';
-    req.user.password   = password;
-    req.user.isGuest    = false;
-    req.user.guestToken = undefined;
-    req.user.lastLogin  = new Date();
+    // ── Case B: fresh email — create a new account ────────────────────────────
+    const newUser = await User.create({
+      email:      email.toLowerCase().trim(),
+      password,                              // pre-save hook hashes it
+      name:       name?.trim() || 'User',
+      roles:      ['user'],
+      isGuest:    false,
+      isVerified: false,
+    });
 
-    await Cart.updateOne(
-      { userId: guestUserId },
-      { $set: { userEmail: email } }
-    );
+    // Transfer cart items to the new account
+    if (guestItems.length > 0) {
+      await Cart.create({
+        userId:    newUser._id,
+        userEmail: newUser.email,
+        items:     guestItems,
+      });
+    }
 
-    const accessToken  = signAccessToken(guestUserId);
-    const refreshToken = signRefreshToken(guestUserId);
+    // Clear the guest cart — shared guest account stays intact and reusable
+    if (guestCart) {
+      guestCart.items = [];
+      await guestCart.save();
+    }
 
-    req.user.refreshTokens = [{ token: refreshToken }];
-    await req.user.save();
+    // Issue full tokens for the new real account
+    const accessToken  = signAccessToken(newUser._id);
+    const refreshToken = signRefreshToken(newUser._id);
+
+    newUser.refreshTokens = [{ token: refreshToken }];
+    newUser.lastLogin     = new Date();
+    await newUser.save();
 
     setRefreshCookie(res, refreshToken);
 
-    return res.status(200).json({
-      user:        req.user.toPublicJSON(),
+    return res.status(201).json({
+      user:        newUser.toPublicJSON(),
       accessToken,
     });
   } catch (err) {
@@ -315,6 +347,7 @@ const refresh = async (req, res, next) => {
 /**
  * POST /api/auth/signout
  * Removes the cookie token from the DB and clears the cookie.
+ * If the user is a guest, clears their cart so the next guest starts fresh.
  */
 const signout = async (req, res, next) => {
   try {
@@ -324,6 +357,15 @@ const signout = async (req, res, next) => {
         $pull: { refreshTokens: { token } },
       });
     }
+
+    // If guest is signing out — clear their cart so it doesn't carry over
+    if (req.user.isGuest) {
+      await Cart.findOneAndUpdate(
+        { userId: req.user._id },
+        { $set: { items: [], shippingDetails: {} } }
+      );
+    }
+
     clearRefreshCookie(res);
     return res.status(200).json({ message: 'Signed out successfully.' });
   } catch (err) {
@@ -332,9 +374,31 @@ const signout = async (req, res, next) => {
 };
 
 /**
- * POST /api/auth/signout-all
- * Wipes all refresh tokens and clears the cookie.
+ * POST /api/auth/clear-guest-cart
+ * Called when:
+ *   - A guest explicitly signs out
+ *   - The frontend detects a guest session on page close (beforeunload)
+ *   - The guest token expires and session restore finds a guest user
+ *
+ * Clears the cart for the authenticated guest user.
+ * The guest account itself is never deleted — it's shared and reusable.
  */
+const clearGuestCart = async (req, res, next) => {
+  try {
+    if (!req.user.isGuest) {
+      return res.status(400).json({ message: 'This endpoint is only for guest sessions.' });
+    }
+
+    await Cart.findOneAndUpdate(
+      { userId: req.user._id },
+      { $set: { items: [], shippingDetails: {} } }
+    );
+
+    return res.status(200).json({ message: 'Guest cart cleared.' });
+  } catch (err) {
+    next(err);
+  }
+};
 const signoutAll = async (req, res, next) => {
   try {
     await User.findByIdAndUpdate(req.user._id, { $set: { refreshTokens: [] } });
@@ -345,4 +409,4 @@ const signoutAll = async (req, res, next) => {
   }
 };
 
-module.exports = { signup, signin, guestSignin, convertGuest, refresh, signout, signoutAll };
+module.exports = { signup, signin, guestSignin, registerFromGuest, convertGuest: registerFromGuest, clearGuestCart, refresh, signout, signoutAll };
