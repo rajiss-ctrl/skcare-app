@@ -6,9 +6,7 @@
   "scripts": {
     "start":            "node app.js",
     "dev":              "nodemon app.js",
-    "seed:superadmin":  "node scripts/seedSuperAdmin.js",
-    "seed:guest":       "node scripts/seedGuest.js",
-    "seed:all":         "node scripts/seedSuperAdmin.js && node scripts/seedGuest.js"
+    "seed:superadmin":  "node scripts/seedSuperAdmin.js"
   },
   "keywords": [],
   "author": "",

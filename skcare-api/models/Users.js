@@ -33,16 +33,6 @@ const userSchema = new mongoose.Schema(
       default: ['user'],
       enum:    ['user', 'staff', 'admin', 'superadmin'],
     },
-    isGuest: {
-      type:    Boolean,
-      default: false,
-    },
-    // For guest sessions we track a short-lived token so the
-    // frontend can resume the same guest cart before converting.
-    guestToken: {
-      type:   String,
-      select: false,
-    },
     isVerified: {
       type:    Boolean,
       default: false,
@@ -100,8 +90,7 @@ userSchema.methods.toPublicJSON = function () {
     name:       this.name,
     photoURL:   this.photoURL,
     roles:      this.roles,
-    topRole,              // highest single role — use for frontend routing decisions
-    isGuest:    this.isGuest,
+    topRole,
     isVerified: this.isVerified,
     createdAt:  this.createdAt,
     lastLogin:  this.lastLogin,

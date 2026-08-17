@@ -1,4 +1,19 @@
 // pages/Checkout.tsx
+/**
+ * Checkout flows:
+ *
+ * A — Anonymous user (no account):
+ *    Single form: registration (name, email, password, confirm) + shipping details.
+ *    On submit:
+ *      1. Calls POST /api/auth/register-checkout with credentials + sessionStorage cart items.
+ *      2. Server creates account, saves cart to DB, returns tokens.
+ *      3. User is now signed in. Proceeds to payment.
+ *    If email already exists: shows "please sign in" prompt.
+ *
+ * B — Authenticated user (already signed in):
+ *    Only shipping details form.
+ *    On submit: saves shipping to DB cart, creates order, proceeds to payment.
+ */
 import React, { useState, useEffect } from 'react';
 import NavBar from '../components/NavBar';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -10,7 +25,19 @@ const API = import.meta.env.VITE_APP_API_BASE_URL || 'http://localhost:5000';
 
 // ─── Form types ───────────────────────────────────────────────────────────────
 
-/** Used by registered users — shipping only */
+interface AnonForm {
+  name:        string;
+  email:       string;
+  password:    string;
+  confirmPwd:  string;
+  phone:       string;
+  street:      string;
+  city:        string;
+  state:       string;
+  postalCode:  string;
+  country:     string;
+}
+
 interface ShippingForm {
   fullName:   string;
   email:      string;
@@ -20,22 +47,6 @@ interface ShippingForm {
   state:      string;
   postalCode: string;
   country:    string;
-}
-
-/** Used by guests — account creation + shipping in one form */
-interface GuestCheckoutForm {
-  // Account section
-  newName:     string;
-  newEmail:    string;
-  newPassword: string;
-  confirmPwd:  string;
-  // Shipping section
-  phone:       string;
-  street:      string;
-  city:        string;
-  state:       string;
-  postalCode:  string;
-  country:     string;
 }
 
 interface FlwConfig {
@@ -66,7 +77,7 @@ const CheckIcon = () => (
 );
 
 const SpinnerIcon = () => (
-  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
 );
 
 // ─── Flutterwave global ───────────────────────────────────────────────────────
@@ -85,7 +96,7 @@ const PayButton: React.FC<{
 }> = ({ config, onSuccess, onClose, disabled }) => {
   const handlePay = () => {
     if (!window.FlutterwaveCheckout) {
-      alert('Payment system is loading, please try again in a moment.');
+      alert('Payment system is loading. Please try again in a moment.');
       return;
     }
     window.FlutterwaveCheckout({
@@ -191,7 +202,8 @@ const OrderSummary: React.FC<{
       </div>
     </div>
     {step === 'payment' && (
-      <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-center gap-1.5 text-xs text-gray-400">
+      <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-center
+                      gap-1.5 text-xs text-gray-400">
         <LockIcon /> Secured by Flutterwave
       </div>
     )}
@@ -200,34 +212,34 @@ const OrderSummary: React.FC<{
 
 // ─── Main component ───────────────────────────────────────────────────────────
 const CheckoutForm: React.FC = () => {
-  const { cart, cartTotal, updateShippingDetails, checkout, fetchCart } = useCart();
-  const { user, getToken, convertGuest, signIn }                         = useAuth();
-  const navigate      = useNavigate();
+  const { cart, cartTotal, updateShippingDetails, checkout, fetchCart, getLocalCartItems } = useCart();
+  const { user, getToken, signIn, registerAndCheckout } = useAuth();
+  const navigate       = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const paymentFromCart = searchParams.get('payment') as 'card' | 'bank_transfer' | null;
+  // Guard — must arrive from cart with a payment method selected
+  const paymentFromCart = searchParams.get('payment') as 'card' | null;
   useEffect(() => {
     if (!paymentFromCart) navigate('/cartpreview', { replace: true });
   }, [paymentFromCart, navigate]);
 
-  const isGuest = user?.isGuest ?? false;
+  const isAnonymous = !user;
 
-  // Guests: Shipping+Account → Payment (2 steps)
-  // Users:  Shipping → Payment (2 steps)
-  const steps    = ['Shipping', 'Payment'];
-  const stepKeys = ['shipping', 'payment'];
+  // Both flows use two steps: details → payment
+  const steps    = isAnonymous ? ['Your Details', 'Payment'] : ['Shipping', 'Payment'];
+  const stepKeys = ['details', 'payment'];
   const [stepIndex, setStepIndex] = useState(0);
   const currentStep = stepKeys[stepIndex];
 
-  const [submitting,   setSubmitting]   = useState(false);
-  const [serverError,  setServerError]  = useState('');
-  const [cartMerged,   setCartMerged]   = useState(false);
-  const [mergedEmail,  setMergedEmail]  = useState('');
-  const [mergedPwd,    setMergedPwd]    = useState('');
-  const [mergedPwdErr, setMergedPwdErr] = useState('');
-  const [flwConfig,    setFlwConfig]    = useState<FlwConfig | null>(null);
-  const [verifying,    setVerifying]    = useState(false);
-  const [paymentError, setPaymentError] = useState('');
+  const [submitting,        setSubmitting]        = useState(false);
+  const [serverError,       setServerError]        = useState('');
+  const [emailExistsState,  setEmailExistsState]   = useState(false);
+  const [emailForSignIn,    setEmailForSignIn]      = useState('');
+  const [signinPwd,         setSigninPwd]           = useState('');
+  const [signinErr,         setSigninErr]           = useState('');
+  const [flwConfig,         setFlwConfig]           = useState<FlwConfig | null>(null);
+  const [verifying,         setVerifying]           = useState(false);
+  const [paymentError,      setPaymentError]        = useState('');
 
   const items = cart?.items ?? [];
 
@@ -237,15 +249,15 @@ const CheckoutForm: React.FC = () => {
   const errCls   = 'text-red-500 text-xs mt-1';
   const labelCls = 'block text-xs font-semibold text-gray-600 mb-1';
 
-  // ── Guest form (account + shipping combined) ──────────────────────────────
+  // ── Anonymous form (registration + shipping combined) ─────────────────────
   const {
-    register: regG,
-    handleSubmit: submitG,
-    watch: watchG,
-    formState: { errors: errG },
-  } = useForm<GuestCheckoutForm>();
+    register: regA,
+    handleSubmit: submitA,
+    watch: watchA,
+    formState: { errors: errA },
+  } = useForm<AnonForm>();
 
-  // ── Registered user shipping form ─────────────────────────────────────────
+  // ── Authenticated shipping form ───────────────────────────────────────────
   const {
     register: regS,
     handleSubmit: submitS,
@@ -257,7 +269,7 @@ const CheckoutForm: React.FC = () => {
     },
   });
 
-  // ── Auth fetch ────────────────────────────────────────────────────────────
+  // ── Auth fetch (authenticated routes) ─────────────────────────────────────
   const authFetch = async (path: string, options: RequestInit = {}) => {
     const token = getToken();
     const res   = await fetch(`${API}${path}`, {
@@ -274,20 +286,20 @@ const CheckoutForm: React.FC = () => {
     return json;
   };
 
-  // ── Proceed to payment (shared by both flows after shipping is saved) ──────
-  const proceedToPayment = async (shippingData: {
+  // ── Shared: save shipping + create order + get Flutterwave config ─────────
+  const proceedToPayment = async (data: {
     name: string; email: string; phone: string;
     street: string; city: string; state: string; postalCode: string; country: string;
   }) => {
     await updateShippingDetails({
-      name:  shippingData.name,
-      phone: shippingData.phone,
+      name:  data.name,
+      phone: data.phone,
       shippingAddress: {
-        street:  shippingData.street,
-        city:    shippingData.city,
-        state:   shippingData.state,
-        zipCode: shippingData.postalCode,
-        country: shippingData.country,
+        street:  data.street,
+        city:    data.city,
+        state:   data.state,
+        zipCode: data.postalCode,
+        country: data.country,
       },
       paymentMethod: 'flutterwave',
     });
@@ -312,29 +324,26 @@ const CheckoutForm: React.FC = () => {
     setStepIndex(1); // → payment
   };
 
-  // ── Guest submit: register + shipping in one shot ─────────────────────────
-  const onGuestSubmit: SubmitHandler<GuestCheckoutForm> = async (data) => {
+  // ── Flow A: anonymous user submits registration + shipping ────────────────
+  const onAnonSubmit: SubmitHandler<AnonForm> = async (data) => {
     setServerError('');
+    setEmailExistsState(false);
     setSubmitting(true);
     try {
-      // Step 1: create new account (transfers cart, clears guest cart, signs in)
-      const result = await convertGuest(data.newEmail, data.newPassword, data.newName);
+      // 1. Read cart from sessionStorage
+      const cartItems = getLocalCartItems();
 
-      if (result.cartMerged) {
-        // Email already exists — user needs to sign in instead
-        setMergedEmail(data.newEmail);
-        setCartMerged(true);
-        setSubmitting(false);
-        return;
-      }
+      // 2. Register account + save cart to DB in one server round-trip
+      await registerAndCheckout(data.email, data.password, data.name, cartItems);
 
-      // Step 2: re-fetch cart (now belongs to the new account)
+      // 3. After registerAndCheckout the user is signed in.
+      //    Re-fetch the DB cart so CartContext has the transferred items.
       await fetchCart();
 
-      // Step 3: save shipping details + create order + get payment config
+      // 4. Save shipping + create order + payment config
       await proceedToPayment({
-        name:       data.newName,
-        email:      data.newEmail,
+        name:       data.name,
+        email:      data.email,
         phone:      data.phone,
         street:     data.street,
         city:       data.city,
@@ -343,28 +352,49 @@ const CheckoutForm: React.FC = () => {
         country:    data.country,
       });
     } catch (err: unknown) {
-      setServerError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      const e = err as Error & { emailExists?: boolean };
+      if (e.emailExists) {
+        // Email already registered — ask them to sign in
+        setEmailForSignIn(data.email);
+        setEmailExistsState(true);
+      } else {
+        setServerError(e.message || 'Something went wrong. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ── Merged email: sign in with existing account then continue ─────────────
-  const handleMergedSignIn = async () => {
-    setMergedPwdErr('');
+  // ── "Email exists" — sign in with existing account then continue ──────────
+  const handleExistingSignIn = async () => {
+    setSigninErr('');
     setSubmitting(true);
     try {
-      await signIn(mergedEmail, mergedPwd);
+      await signIn(emailForSignIn, signinPwd);
+      // After sign-in, CartContext will load the DB cart.
+      // The sessionStorage items are NOT automatically transferred here —
+      // they were not saved to the server yet.
+      // Merge local items into DB cart manually.
+      const localItems = getLocalCartItems();
+      if (localItems.length > 0) {
+        await authFetch('/api/carts/items', {
+          method: 'POST',
+          body:   JSON.stringify({ items: localItems }),
+        });
+        sessionStorage.removeItem('skcare_local_cart');
+      }
       await fetchCart();
-      setCartMerged(false);
+      setEmailExistsState(false);
+      setEmailForSignIn('');
+      setSigninPwd('');
     } catch (err: unknown) {
-      setMergedPwdErr(err instanceof Error ? err.message : 'Sign in failed.');
+      setSigninErr(err instanceof Error ? err.message : 'Sign in failed.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ── Registered user submit: shipping only ─────────────────────────────────
+  // ── Flow B: authenticated user submits shipping only ─────────────────────
   const onShippingSubmit: SubmitHandler<ShippingForm> = async (data) => {
     setServerError('');
     setSubmitting(true);
@@ -404,7 +434,7 @@ const CheckoutForm: React.FC = () => {
           setPaymentError('Payment was not successful. Please try again.');
           return;
         }
-      } catch { /* continue */ }
+      } catch { /* keep polling */ }
       if (i < MAX_POLLS) await new Promise((r) => setTimeout(r, 10_000));
     }
     setVerifying(false);
@@ -414,9 +444,9 @@ const CheckoutForm: React.FC = () => {
     );
   };
 
-  const handleModalClose = () => setPaymentError('Payment was cancelled. You can try again below.');
+  const handleModalClose = () => setPaymentError('Payment was cancelled. You can try again.');
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <section className="min-h-screen bg-[#FAFAFA]">
       <p className="bg-[#4F705B] w-full text-center text-white text-sm py-2 font-medium">
@@ -436,374 +466,250 @@ const CheckoutForm: React.FC = () => {
 
         <div className="flex flex-col lg:flex-row gap-8 items-start">
 
-          {/* ── LEFT PANEL ─────────────────────────────────────────────── */}
+          {/* ── LEFT PANEL ───────────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
 
-            {/* ════════════════════════════════════════════════════════════
-                SHIPPING STEP
-                • Guest: account fields + shipping fields combined
-                • User:  shipping fields only
-            ════════════════════════════════════════════════════════════ */}
-            {currentStep === 'shipping' && (
+            {/* ══ DETAILS STEP ════════════════════════════════════════════ */}
+            {currentStep === 'details' && (
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
 
-                {/* ── Cart merged — existing account ──────────────────── */}
-                {cartMerged ? (
+                {/* Email-already-exists: sign in instead */}
+                {emailExistsState ? (
                   <>
                     <div className="mb-5 pb-4 border-b border-gray-100">
-                      <h2 className="text-base font-bold text-gray-800">
-                        ✅ Cart Saved — Sign In to Continue
-                      </h2>
+                      <h2 className="text-base font-bold text-gray-800">✅ Sign In to Continue</h2>
                       <p className="text-sm text-gray-500 mt-2">
-                        <strong>{mergedEmail}</strong> is already registered.
-                        Your cart items have been saved to that account.
-                        Sign in to continue to payment.
+                        <strong>{emailForSignIn}</strong> is already registered.
+                        Sign in to continue — your cart items will be saved.
                       </p>
                     </div>
                     <div className="space-y-3">
                       <div>
                         <label className={labelCls}>Password *</label>
-                        <input
-                          type="password"
-                          className={inputCls}
-                          placeholder="Your password"
-                          value={mergedPwd}
-                          onChange={(e) => setMergedPwd(e.target.value)}
-                        />
+                        <input type="password" className={inputCls} placeholder="Your password"
+                          value={signinPwd} onChange={(e) => setSigninPwd(e.target.value)} />
                       </div>
-                      {mergedPwdErr && (
-                        <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">
-                          {mergedPwdErr}
-                        </p>
+                      {signinErr && (
+                        <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{signinErr}</p>
                       )}
-                      <button
-                        onClick={handleMergedSignIn}
-                        disabled={submitting || !mergedPwd}
-                        className="w-full py-3 rounded-xl bg-[#4F705B] text-white font-bold
-                                   text-sm hover:bg-[#3a5344] disabled:opacity-50 transition"
-                      >
-                        {submitting ? (
-                          <span className="flex items-center justify-center gap-2">
-                            <SpinnerIcon /> Signing in…
-                          </span>
-                        ) : 'Sign In & Continue →'}
+                      <button onClick={handleExistingSignIn} disabled={submitting || !signinPwd}
+                        className="w-full py-3 rounded-xl bg-[#4F705B] text-white font-bold text-sm
+                                   hover:bg-[#3a5344] disabled:opacity-50 transition flex items-center justify-center gap-2">
+                        {submitting ? <><SpinnerIcon /> Signing in…</> : 'Sign In & Continue →'}
+                      </button>
+                      <button onClick={() => { setEmailExistsState(false); setEmailForSignIn(''); }}
+                        className="w-full text-xs text-gray-400 hover:text-gray-600 transition underline">
+                        Use a different email
                       </button>
                     </div>
                   </>
 
-                ) : isGuest ? (
-                  /* ── GUEST: account creation + shipping combined ─────── */
+                ) : isAnonymous ? (
+                  /* ── ANONYMOUS: registration + shipping combined ─────── */
                   <>
                     <div className="mb-5 pb-4 border-b border-gray-100">
-                      <h2 className="text-base font-bold text-gray-800">
-                        Your Details & Shipping
-                      </h2>
+                      <h2 className="text-base font-bold text-gray-800">Your Details</h2>
                       <p className="text-xs text-gray-400 mt-1">
-                        Create your account and enter your delivery address below.
-                        You'll be able to log in and track your order after checkout.
+                        Create your account and enter your delivery address.
+                        You'll be able to sign in and track orders anytime after checkout.
                       </p>
                     </div>
 
-                    <form onSubmit={submitG(onGuestSubmit)} className="space-y-5">
+                    <form onSubmit={submitA(onAnonSubmit)} className="space-y-5">
 
-                      {/* Account section */}
+                      {/* Account */}
                       <div>
                         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
-                          Account Details
+                          Account
                         </p>
                         <div className="space-y-3">
                           <div>
                             <label className={labelCls}>Full Name *</label>
-                            <input
-                              type="text"
-                              className={inputCls}
-                              placeholder="John Doe"
-                              {...regG('newName', { required: 'Full name is required' })}
-                            />
-                            {errG.newName && <p className={errCls}>{errG.newName.message}</p>}
+                            <input type="text" className={inputCls} placeholder="John Doe"
+                              {...regA('name', { required: 'Full name is required' })} />
+                            {errA.name && <p className={errCls}>{errA.name.message}</p>}
                           </div>
-
                           <div>
                             <label className={labelCls}>Email Address *</label>
-                            <input
-                              type="email"
-                              className={inputCls}
-                              placeholder="you@email.com"
-                              {...regG('newEmail', { required: 'Email is required' })}
-                            />
-                            {errG.newEmail && <p className={errCls}>{errG.newEmail.message}</p>}
+                            <input type="email" className={inputCls} placeholder="you@example.com"
+                              {...regA('email', { required: 'Email is required' })} />
+                            {errA.email && <p className={errCls}>{errA.email.message}</p>}
                           </div>
-
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                               <label className={labelCls}>Password *</label>
-                              <input
-                                type="password"
-                                className={inputCls}
-                                placeholder="••••••••"
-                                {...regG('newPassword', {
+                              <input type="password" className={inputCls} placeholder="••••••••"
+                                {...regA('password', {
                                   required: 'Password is required',
                                   minLength: { value: 8, message: 'Min 8 characters' },
                                   validate: {
-                                    upper:   (v) => /[A-Z]/.test(v) || 'Needs an uppercase letter',
-                                    number:  (v) => /[0-9]/.test(v) || 'Needs a number',
+                                    upper:   (v) => /[A-Z]/.test(v)        || 'Needs an uppercase letter',
+                                    number:  (v) => /[0-9]/.test(v)        || 'Needs a number',
                                     special: (v) => /[^A-Za-z0-9]/.test(v) || 'Needs a special character',
                                   },
-                                })}
-                              />
-                              {errG.newPassword && <p className={errCls}>{errG.newPassword.message}</p>}
+                                })} />
+                              {errA.password && <p className={errCls}>{errA.password.message}</p>}
                             </div>
                             <div>
                               <label className={labelCls}>Confirm Password *</label>
-                              <input
-                                type="password"
-                                className={inputCls}
-                                placeholder="••••••••"
-                                {...regG('confirmPwd', {
+                              <input type="password" className={inputCls} placeholder="••••••••"
+                                {...regA('confirmPwd', {
                                   required: 'Please confirm your password',
-                                  validate: (v) =>
-                                    v === watchG('newPassword') || 'Passwords do not match',
-                                })}
-                              />
-                              {errG.confirmPwd && <p className={errCls}>{errG.confirmPwd.message}</p>}
+                                  validate: (v) => v === watchA('password') || 'Passwords do not match',
+                                })} />
+                              {errA.confirmPwd && <p className={errCls}>{errA.confirmPwd.message}</p>}
                             </div>
                           </div>
                           <p className="text-xs text-gray-400">
-                            Min 8 chars · one uppercase · one number · one special character
+                            Min 8 chars · uppercase · number · special character
                           </p>
                         </div>
                       </div>
 
-                      {/* Divider */}
-                      <div className="border-t border-gray-100 pt-1">
+                      {/* Shipping */}
+                      <div className="border-t border-gray-100 pt-4">
                         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
                           Delivery Address
                         </p>
-                      </div>
-
-                      {/* Shipping section */}
-                      <div className="space-y-3">
-                        <div>
-                          <label className={labelCls}>Phone Number *</label>
-                          <input
-                            type="tel"
-                            className={inputCls}
-                            placeholder="08012345678"
-                            {...regG('phone', { required: 'Phone number is required' })}
-                          />
-                          {errG.phone && <p className={errCls}>{errG.phone.message}</p>}
-                        </div>
-
-                        <div>
-                          <label className={labelCls}>Street Address *</label>
-                          <input
-                            type="text"
-                            className={inputCls}
-                            placeholder="12 Lagos Island, Suite 4"
-                            {...regG('street', { required: 'Street address is required' })}
-                          />
-                          {errG.street && <p className={errCls}>{errG.street.message}</p>}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-3">
                           <div>
-                            <label className={labelCls}>City *</label>
-                            <input
-                              type="text"
-                              className={inputCls}
-                              placeholder="Lagos"
-                              {...regG('city', { required: 'City is required' })}
-                            />
-                            {errG.city && <p className={errCls}>{errG.city.message}</p>}
+                            <label className={labelCls}>Phone Number *</label>
+                            <input type="tel" className={inputCls} placeholder="08012345678"
+                              {...regA('phone', { required: 'Phone number is required' })} />
+                            {errA.phone && <p className={errCls}>{errA.phone.message}</p>}
                           </div>
                           <div>
-                            <label className={labelCls}>State *</label>
-                            <input
-                              type="text"
-                              className={inputCls}
-                              placeholder="Lagos State"
-                              {...regG('state', { required: 'State is required' })}
-                            />
-                            {errG.state && <p className={errCls}>{errG.state.message}</p>}
+                            <label className={labelCls}>Street Address *</label>
+                            <input type="text" className={inputCls} placeholder="12 Lagos Island"
+                              {...regA('street', { required: 'Street address is required' })} />
+                            {errA.street && <p className={errCls}>{errA.street.message}</p>}
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className={labelCls}>Postal Code *</label>
-                            <input
-                              type="text"
-                              className={inputCls}
-                              placeholder="100001"
-                              {...regG('postalCode', { required: 'Postal code is required' })}
-                            />
-                            {errG.postalCode && <p className={errCls}>{errG.postalCode.message}</p>}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className={labelCls}>City *</label>
+                              <input type="text" className={inputCls} placeholder="Lagos"
+                                {...regA('city', { required: 'City is required' })} />
+                              {errA.city && <p className={errCls}>{errA.city.message}</p>}
+                            </div>
+                            <div>
+                              <label className={labelCls}>State *</label>
+                              <input type="text" className={inputCls} placeholder="Lagos State"
+                                {...regA('state', { required: 'State is required' })} />
+                              {errA.state && <p className={errCls}>{errA.state.message}</p>}
+                            </div>
                           </div>
-                          <div>
-                            <label className={labelCls}>Country *</label>
-                            <input
-                              type="text"
-                              className={inputCls}
-                              placeholder="Nigeria"
-                              {...regG('country', { required: 'Country is required' })}
-                            />
-                            {errG.country && <p className={errCls}>{errG.country.message}</p>}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className={labelCls}>Postal Code *</label>
+                              <input type="text" className={inputCls} placeholder="100001"
+                                {...regA('postalCode', { required: 'Postal code is required' })} />
+                              {errA.postalCode && <p className={errCls}>{errA.postalCode.message}</p>}
+                            </div>
+                            <div>
+                              <label className={labelCls}>Country *</label>
+                              <input type="text" className={inputCls} placeholder="Nigeria"
+                                {...regA('country', { required: 'Country is required' })} />
+                              {errA.country && <p className={errCls}>{errA.country.message}</p>}
+                            </div>
                           </div>
                         </div>
                       </div>
 
                       {serverError && (
-                        <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">
-                          {serverError}
-                        </p>
+                        <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{serverError}</p>
                       )}
 
-                      <button
-                        type="submit"
-                        disabled={submitting || items.length === 0}
+                      <button type="submit" disabled={submitting || items.length === 0}
                         className="w-full py-3.5 rounded-xl bg-[#4F705B] text-white font-bold
                                    text-sm hover:bg-[#3a5344] disabled:opacity-50 transition
-                                   flex items-center justify-center gap-2"
-                      >
-                        {submitting ? (
-                          <><SpinnerIcon /> Creating account &amp; preparing order…</>
-                        ) : (
-                          'Save & Continue to Payment →'
-                        )}
+                                   flex items-center justify-center gap-2">
+                        {submitting
+                          ? <><SpinnerIcon /> Creating account &amp; preparing order…</>
+                          : 'Save & Continue to Payment →'}
                       </button>
 
                       <p className="text-center text-xs text-gray-400">
-                        After checkout you can sign in at any time using your email and password.
+                        After checkout you can sign in at any time with your email and password.
                       </p>
                     </form>
                   </>
 
                 ) : (
-                  /* ── REGISTERED USER: shipping only ─────────────────── */
+                  /* ── AUTHENTICATED: shipping only ────────────────────── */
                   <>
                     <div className="mb-5 pb-4 border-b border-gray-100">
                       <h2 className="text-base font-bold text-gray-800">Shipping Information</h2>
-                      <p className="text-xs text-gray-400 mt-1">
-                        We'll deliver to this address.
-                      </p>
+                      <p className="text-xs text-gray-400 mt-1">We'll deliver to this address.</p>
                     </div>
 
                     <form onSubmit={submitS(onShippingSubmit)} className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className={labelCls}>Full Name *</label>
-                          <input
-                            type="text"
-                            className={inputCls}
-                            placeholder="John Doe"
-                            {...regS('fullName', { required: 'Full name is required' })}
-                          />
+                          <input type="text" className={inputCls} placeholder="John Doe"
+                            {...regS('fullName', { required: 'Full name is required' })} />
                           {errS.fullName && <p className={errCls}>{errS.fullName.message}</p>}
                         </div>
                         <div>
                           <label className={labelCls}>Phone Number *</label>
-                          <input
-                            type="tel"
-                            className={inputCls}
-                            placeholder="08012345678"
-                            {...regS('phone', { required: 'Phone number is required' })}
-                          />
+                          <input type="tel" className={inputCls} placeholder="08012345678"
+                            {...regS('phone', { required: 'Phone number is required' })} />
                           {errS.phone && <p className={errCls}>{errS.phone.message}</p>}
                         </div>
                       </div>
-
                       <div>
                         <label className={labelCls}>Email Address *</label>
-                        <input
-                          type="email"
-                          className={inputCls}
-                          placeholder="you@email.com"
-                          {...regS('email', { required: 'Email is required' })}
-                        />
+                        <input type="email" className={inputCls} placeholder="you@example.com"
+                          {...regS('email', { required: 'Email is required' })} />
                         {errS.email && <p className={errCls}>{errS.email.message}</p>}
                       </div>
-
-                      <div className="pt-1 pb-0.5">
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                      <div className="pt-1">
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
                           Delivery Address
                         </p>
                       </div>
-
                       <div>
                         <label className={labelCls}>Street Address *</label>
-                        <input
-                          type="text"
-                          className={inputCls}
-                          placeholder="12 Lagos Island, Suite 4"
-                          {...regS('street', { required: 'Street address is required' })}
-                        />
+                        <input type="text" className={inputCls} placeholder="12 Lagos Island"
+                          {...regS('street', { required: 'Street address is required' })} />
                         {errS.street && <p className={errCls}>{errS.street.message}</p>}
                       </div>
-
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className={labelCls}>City *</label>
-                          <input
-                            type="text"
-                            className={inputCls}
-                            placeholder="Lagos"
-                            {...regS('city', { required: 'City is required' })}
-                          />
+                          <input type="text" className={inputCls} placeholder="Lagos"
+                            {...regS('city', { required: 'City is required' })} />
                           {errS.city && <p className={errCls}>{errS.city.message}</p>}
                         </div>
                         <div>
                           <label className={labelCls}>State *</label>
-                          <input
-                            type="text"
-                            className={inputCls}
-                            placeholder="Lagos State"
-                            {...regS('state', { required: 'State is required' })}
-                          />
+                          <input type="text" className={inputCls} placeholder="Lagos State"
+                            {...regS('state', { required: 'State is required' })} />
                           {errS.state && <p className={errCls}>{errS.state.message}</p>}
                         </div>
                       </div>
-
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className={labelCls}>Postal Code *</label>
-                          <input
-                            type="text"
-                            className={inputCls}
-                            placeholder="100001"
-                            {...regS('postalCode', { required: 'Postal code is required' })}
-                          />
+                          <input type="text" className={inputCls} placeholder="100001"
+                            {...regS('postalCode', { required: 'Postal code is required' })} />
                           {errS.postalCode && <p className={errCls}>{errS.postalCode.message}</p>}
                         </div>
                         <div>
                           <label className={labelCls}>Country *</label>
-                          <input
-                            type="text"
-                            className={inputCls}
-                            placeholder="Nigeria"
-                            {...regS('country', { required: 'Country is required' })}
-                          />
+                          <input type="text" className={inputCls} placeholder="Nigeria"
+                            {...regS('country', { required: 'Country is required' })} />
                           {errS.country && <p className={errCls}>{errS.country.message}</p>}
                         </div>
                       </div>
-
                       {serverError && (
-                        <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">
-                          {serverError}
-                        </p>
+                        <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{serverError}</p>
                       )}
-
-                      <button
-                        type="submit"
-                        disabled={submitting || items.length === 0}
+                      <button type="submit" disabled={submitting || items.length === 0}
                         className="w-full py-3.5 rounded-xl bg-[#4F705B] text-white font-bold
                                    text-sm hover:bg-[#3a5344] disabled:opacity-50 transition
-                                   flex items-center justify-center gap-2"
-                      >
-                        {submitting ? (
-                          <><SpinnerIcon /> Preparing order…</>
-                        ) : (
-                          'Save & Continue →'
-                        )}
+                                   flex items-center justify-center gap-2">
+                        {submitting ? <><SpinnerIcon /> Preparing order…</> : 'Save & Continue →'}
                       </button>
                     </form>
                   </>
@@ -811,30 +717,22 @@ const CheckoutForm: React.FC = () => {
               </div>
             )}
 
-            {/* ════════════════════════════════════════════════════════════
-                PAYMENT STEP — same for both guest and registered user
-            ════════════════════════════════════════════════════════════ */}
+            {/* ══ PAYMENT STEP ════════════════════════════════════════════ */}
             {currentStep === 'payment' && (
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
                 <div className="mb-5 pb-4 border-b border-gray-100">
                   <h2 className="text-base font-bold text-gray-800">Payment</h2>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Your connection is encrypted and secure.
-                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Your connection is encrypted and secure.</p>
                 </div>
 
-                {/* Confirmed badge */}
                 <div className="mb-5 p-3 bg-[#f0f7f3] rounded-lg border border-[#4F705B]/20
                                 flex items-center gap-2 text-sm text-[#4F705B]">
                   <CheckIcon />
                   <span className="font-medium">
-                    {isGuest
-                      ? 'Account created & shipping details confirmed'
-                      : 'Shipping details confirmed'}
+                    {isAnonymous ? 'Account created & shipping confirmed' : 'Shipping details confirmed'}
                   </span>
                 </div>
 
-                {/* Payment method */}
                 <div className="mb-5 p-4 border border-gray-200 rounded-lg flex items-center gap-3">
                   <div className="p-2 rounded-md bg-[#4F705B] text-white">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -847,8 +745,8 @@ const CheckoutForm: React.FC = () => {
                     <p className="text-sm font-semibold text-gray-800">Card Payment</p>
                     <p className="text-xs text-gray-400">Debit / Credit card via Flutterwave</p>
                   </div>
-                  <span className="ml-auto text-xs bg-[#f0f7f3] text-[#4F705B]
-                                   border border-[#4F705B]/20 px-2 py-0.5 rounded-full font-medium">
+                  <span className="ml-auto text-xs bg-[#f0f7f3] text-[#4F705B] border
+                                   border-[#4F705B]/20 px-2 py-0.5 rounded-full font-medium">
                     Selected
                   </span>
                 </div>
@@ -886,7 +784,7 @@ const CheckoutForm: React.FC = () => {
             )}
           </div>
 
-          {/* ── RIGHT: Order summary ──────────────────────────────────────── */}
+          {/* ── RIGHT: Order summary ────────────────────────────────────────── */}
           <div className="w-full lg:w-[340px] flex-shrink-0">
             <OrderSummary items={items} cartTotal={cartTotal} step={currentStep} />
           </div>

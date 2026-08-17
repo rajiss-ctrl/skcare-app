@@ -3,14 +3,12 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useProductContext } from '@/context/ProductContext';
 import { useCart }           from '@/context/CartContext';
-import { useAuth }           from '@/context/AuthContext';
 import { Button }            from '@/components/ui/button';
 
 const SingleProduct: React.FC = () => {
   const { productId }   = useParams<{ productId: string }>();
   const { products }    = useProductContext();
   const { addToCart }   = useCart();
-  const { user, guestSignIn } = useAuth();
   const navigate        = useNavigate();
 
   const [adding, setAdding] = useState(false);
@@ -29,13 +27,10 @@ const SingleProduct: React.FC = () => {
   }
 
   const handleAddToCart = async () => {
+    if (adding) return;
     setAdding(true);
     setError('');
     try {
-      // Auto-create guest session if no user exists
-      if (!user) {
-        await guestSignIn();
-      }
       await addToCart({
         productId: product._id,
         name:      product.name,
@@ -44,7 +39,7 @@ const SingleProduct: React.FC = () => {
         quantity:  1,
       });
       setAdded(true);
-      setTimeout(() => setAdded(false), 2000);
+      setTimeout(() => setAdded(false), 1500);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to add to cart.');
     } finally {
@@ -54,38 +49,39 @@ const SingleProduct: React.FC = () => {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-        <div className="flex flex-col md:flex-row items-center md:space-x-8">
-          <img
-            src={product.imageUrl || 'default-image.jpg'}
-            alt={product.name}
-            className="w-full md:w-1/2 rounded-lg shadow-lg object-cover"
-          />
+      <div className="flex flex-col md:flex-row items-center md:space-x-8">
+        <img
+          src={product.imageUrl || 'default-image.jpg'}
+          alt={product.name}
+          className="w-full md:w-1/2 rounded-lg shadow-lg object-cover"
+        />
+        <div className="flex flex-col space-y-4 mt-6 md:mt-0">
+          <h1 className="text-3xl font-bold">{product.name}</h1>
+          <h2 className="text-xl text-[#4F705B]">₦{product.price?.toLocaleString()}</h2>
 
-          <div className="flex flex-col space-y-4 mt-6 md:mt-0">
-            <h1 className="text-3xl font-bold">{product.name}</h1>
-            <h2 className="text-xl text-[#4F705B]">₦{product.price?.toLocaleString()}</h2>
+          {error && (
+            <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+          )}
 
-            {error && (
-              <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
-            )}
+          <Button
+            className={`py-2 px-4 rounded-lg transition ${
+              added ? 'bg-green-600 text-white' : 'bg-[#4F705B] hover:bg-[#3a5344] text-white'
+            }`}
+            onClick={handleAddToCart}
+            disabled={adding}
+          >
+            {adding ? 'Adding…' : added ? '✓ Added to cart' : 'Add to Cart'}
+          </Button>
 
-            <Button
-              className="bg-[#4F705B] text-white py-2 px-4 rounded-lg hover:bg-[#3a5344] transition"
-              onClick={handleAddToCart}
-              disabled={adding}
-            >
-              {adding ? 'Adding…' : added ? '✓ Added to cart' : 'Add to Cart'}
-            </Button>
-
-            <Button
-              className="bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition"
-              onClick={() => navigate('/')}
-            >
-              Back to Products
-            </Button>
-          </div>
+          <Button
+            className="bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition"
+            onClick={() => navigate('/')}
+          >
+            Back to Products
+          </Button>
         </div>
       </div>
+    </div>
   );
 };
 

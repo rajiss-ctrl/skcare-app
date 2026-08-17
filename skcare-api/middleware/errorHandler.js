@@ -10,8 +10,13 @@
 const errorHandler = (err, req, res, next) => {  // eslint-disable-line no-unused-vars
   const isDev = process.env.NODE_ENV === 'development';
 
-  // Log every error server-side for observability
-  console.error(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`, err);
+  // ── Safe server-side logging ──────────────────────────────────────────────
+  // Never log req.body — it may contain passwords or tokens.
+  // Log only the method, path, error name, and message.
+  console.error(
+    `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} — ` +
+    `${err.name || 'Error'}: ${err.message}`
+  );
 
   // ── Mongoose validation error ─────────────────────────────────────────────
   if (err.name === 'ValidationError') {
