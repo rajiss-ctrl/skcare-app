@@ -3,6 +3,7 @@ import React, {
   createContext,
   useState,
   useEffect,
+  useRef,
   useContext,
   useCallback,
   ReactNode,
@@ -98,6 +99,11 @@ const post = async (path: string, body?: object, token?: string | null) => {
   return json;
 };
 
+// ─── Idle timeout ─────────────────────────────────────────────────────────────
+// Auto sign-out after 30 minutes of no user activity on the page.
+// Protects sessions on shared / public devices.
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -106,6 +112,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user,        setUser]        = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading,   setIsLoading]   = useState(true);
+
+  // Stable ref to signOut so the idle timer can call it without stale closure
+  const signOutRef = useRef<() => Promise<void>>();
 
   // ── Apply a successful auth response ────────────────────────────────────────
   const applyAuth = (token: string, profile: AuthUser) => {
@@ -201,15 +210,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (token) await post('/api/auth/signout', undefined, token);
     } catch { /* sign out locally even if server fails */ } finally {
       removeToken();
-      // Clear the anonymous cart from sessionStorage so the next
-      // user/session starts with an empty cart.
       sessionStorage.removeItem('skcare_local_cart');
       setUser(null);
       setAccessToken(null);
     }
   };
 
+  // Keep ref in sync so the idle timer always has the latest signOut
+  signOutRef.current = signOut;
+
   const getToken = (): string | null => readToken();
+
+  // ── Idle timeout — auto sign-out on shared/public devices ────────────────────
+  // Resets on any user interaction. Fires signOut() after IDLE_TIMEOUT_MS of silence.
+  // Only active when a user is signed in.
+  useEffect(() => {
+    if (!user) return; // no session — nothing to protect
+
+    let timer: ReturnType<typeof setTimeout>;
+
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        // Session idle — sign out silently
+        if (signOutRef.current) {
+          await signOutRef.current();
+        }
+      }, IDLE_TIMEOUT_MS);
+    };
+
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    events.forEach((e) => window.addEventListener(e, resetTimer, { passive: true }));
+    resetTimer(); // start the timer immediately
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, resetTimer));
+    };
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{
