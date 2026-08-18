@@ -201,6 +201,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (token) await post('/api/auth/signout', undefined, token);
     } catch { /* sign out locally even if server fails */ } finally {
       removeToken();
+      // Clear the anonymous cart from sessionStorage so the next
+      // user/session starts with an empty cart.
+      sessionStorage.removeItem('skcare_local_cart');
       setUser(null);
       setAccessToken(null);
     }

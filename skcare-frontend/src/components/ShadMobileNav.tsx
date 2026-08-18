@@ -45,6 +45,10 @@ const MobileNav = () => {
               { label: 'Blog',       to: '/'            },
               { label: 'About',      to: '/'            },
               { label: 'Contact',    to: '/'            },
+              ...(user ? [{ label: 'My Orders', to: '/orders' }] : []),
+              ...(user && ['staff', 'admin', 'superadmin'].includes(user.topRole)
+                ? [{ label: '⚙ Dashboard', to: '/admin' }]
+                : []),
             ].map(({ label, to }) => (
               <li key={label}>
                 <Link

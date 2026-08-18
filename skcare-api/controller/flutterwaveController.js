@@ -194,6 +194,15 @@ const webhook = async (req, res) => {
         },
       });
 
+      // ── Clear the cart ONLY on successful payment ────────────────────────
+      // This is the single place cart clearing happens, guaranteeing the
+      // cart survives failed/cancelled payment attempts.
+      const Cart = require('../models/Carts');
+      await Cart.findOneAndUpdate(
+        { userId: existing.userId },
+        { $set: { items: [], shippingDetails: {} } }
+      );
+
       console.log(`[Webhook] ✅ Payment confirmed for tx_ref: ${tx_ref}`);
     } else {
       existing.status         = 'failed';
@@ -205,6 +214,7 @@ const webhook = async (req, res) => {
         $set: { paymentStatus: 'failed' },
       });
 
+      // Cart is intentionally NOT cleared on failure — user keeps their items
       console.log(`[Webhook] ❌ Payment failed for tx_ref: ${tx_ref}`);
     }
 
@@ -269,6 +279,12 @@ const getTransactionStatus = async (req, res, next) => {
             paymentReference: String(data.id),
           },
         });
+        // Clear the cart on confirmed payment
+        const Cart = require('../models/Carts');
+        await Cart.findOneAndUpdate(
+          { userId: transaction.userId },
+          { $set: { items: [], shippingDetails: {} } }
+        );
         return res.status(200).json({
           status:  'success',
           orderId: transaction.orderId,

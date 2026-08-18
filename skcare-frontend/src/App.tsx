@@ -8,6 +8,7 @@ import SingleProduct   from './pages/SingleProduct';
 import CartPreviewPage from './pages/CartPreviewPage';
 import CheckoutForm    from './pages/Checkout';
 import AllProducts     from './pages/AllProducts';
+import OrdersPage      from './pages/Orders';
 import ProtectedRoute  from './components/ProtectedRoute';
 
 function App() {
@@ -24,6 +25,11 @@ function App() {
           <Route path="/cartpreview"        element={<CartPreviewPage />} />
           <Route path="/product/:productId" element={<SingleProduct />} />
           <Route path="/checkout-form"      element={<CheckoutForm />} />
+          <Route path="/orders"             element={
+            <ProtectedRoute>
+              <OrdersPage />
+            </ProtectedRoute>
+          } />
 
           {/* Admin — requires staff role or higher */}
           <Route

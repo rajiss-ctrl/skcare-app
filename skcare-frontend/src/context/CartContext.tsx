@@ -212,9 +212,10 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // ── Checkout ────────────────────────────────────────────────────────────────
+  // Creates a pending order. Does NOT clear the cart — the cart is only
+  // cleared after payment is confirmed successful (see handlePaymentCallback).
   const checkout = async (): Promise<{ orderId: string }> => {
     const data = await authFetch('/checkout', { method: 'POST' });
-    setCart((prev) => prev ? { ...prev, items: [] } : null);
     return { orderId: data.orderId };
   };
 

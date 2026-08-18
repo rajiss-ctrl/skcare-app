@@ -277,14 +277,16 @@ const checkout = async (req, res, next) => {
       paymentMethod:   shippingDetails.paymentMethod,
       subtotal:        parseFloat(subtotal.toFixed(2)),
       totalAmount:     parseFloat(subtotal.toFixed(2)),
-      // Order starts as pending payment — confirmed by Flutterwave webhook
+      // Order starts as pending payment — confirmed by Flutterwave webhook.
+      // Cart is NOT cleared here — it is cleared only after payment succeeds.
       paymentStatus: 'pending',
       orderStatus:   'processing',
     });
 
-    // Clear the cart
-    cart.items = [];
-    await cart.save();
+    // DO NOT clear the cart here.
+    // The cart is cleared by the Flutterwave webhook handler when payment
+    // is confirmed as successful. This ensures that if payment fails or is
+    // cancelled the user's cart items are still intact.
 
     return res.status(201).json({
       message: 'Order created. Proceed to payment.',

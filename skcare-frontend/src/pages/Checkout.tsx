@@ -212,7 +212,7 @@ const OrderSummary: React.FC<{
 
 // ─── Main component ───────────────────────────────────────────────────────────
 const CheckoutForm: React.FC = () => {
-  const { cart, cartTotal, updateShippingDetails, checkout, fetchCart, getLocalCartItems } = useCart();
+  const { cart, cartTotal, updateShippingDetails, checkout, fetchCart, getLocalCartItems, clearCart } = useCart();
   const { user, getToken, signIn, registerAndCheckout } = useAuth();
   const navigate       = useNavigate();
   const [searchParams] = useSearchParams();
@@ -417,6 +417,8 @@ const CheckoutForm: React.FC = () => {
   };
 
   // ── Payment verification ──────────────────────────────────────────────────
+  // Cart is cleared HERE on success — not at order creation time.
+  // If payment fails or the modal is closed, the cart is untouched.
   const handlePaymentCallback = async (tx_ref: string) => {
     setVerifying(true);
     setPaymentError('');
@@ -425,13 +427,18 @@ const CheckoutForm: React.FC = () => {
       try {
         const data = await authFetch(`/api/flutterwave/transaction-status/${tx_ref}`);
         if (data.status === 'success') {
+          // Payment confirmed — clear the cart then navigate to orders
+          await clearCart();
           setVerifying(false);
-          navigate(`/?order=${data.orderId}`);
+          navigate('/orders');
           return;
         }
         if (data.status === 'failed') {
+          // Payment failed — cart is intentionally kept intact
           setVerifying(false);
-          setPaymentError('Payment was not successful. Please try again.');
+          setPaymentError(
+            'Payment was not successful. Your cart items are still saved — you can try again.'
+          );
           return;
         }
       } catch { /* keep polling */ }
@@ -440,11 +447,14 @@ const CheckoutForm: React.FC = () => {
     setVerifying(false);
     setPaymentError(
       'Verification is taking longer than expected. If your payment was deducted, ' +
-      'your order will be confirmed shortly — check your order history.'
+      'your order will be confirmed shortly. Check your Orders page in a few minutes.'
     );
   };
 
-  const handleModalClose = () => setPaymentError('Payment was cancelled. You can try again.');
+  // Modal closed without completing — cart stays intact
+  const handleModalClose = () => setPaymentError(
+    'Payment was cancelled. Your cart items are still saved — you can try again whenever you\'re ready.'
+  );
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (

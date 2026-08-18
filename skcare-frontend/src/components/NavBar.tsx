@@ -45,6 +45,20 @@ const NavBar = () => {
           <li className="text-gray-700 hover:text-black cursor-pointer">About</li>
           <li className="text-gray-700 hover:text-black cursor-pointer">Blog</li>
           <li className="text-gray-700 hover:text-black cursor-pointer">Contact</li>
+          {user && navLink('/orders', 'My Orders')}
+          {user && ['staff', 'admin', 'superadmin'].includes(user.topRole) && (
+            <li className="relative">
+              <Link
+                to="/admin"
+                className="flex items-center gap-1 text-[#4F705B] font-semibold hover:text-[#3a5344]"
+              >
+                <span>⚙</span> Dashboard
+              </Link>
+              {location.pathname.startsWith('/admin') && (
+                <div className="absolute bottom-[-5px] left-0 w-full h-[2px] bg-[#4F705B]" />
+              )}
+            </li>
+          )}
         </ul>
 
         {/* Search */}
