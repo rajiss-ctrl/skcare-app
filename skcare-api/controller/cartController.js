@@ -31,21 +31,20 @@ const addToCart = async (req, res, next) => {
   try {
     const { items } = req.body;
 
-    // Verify every product exists and has sufficient stock
-    const productIds = items.map((i) => i.productId);
-    const products   = await Product.find({ _id: { $in: productIds }, isActive: true }).lean();
-
-    const productMap = {};
-    products.forEach((p) => { productMap[p._id.toString()] = p; });
-
+    // Verify every product exists, is active, and has sufficient stock.
+    // We use a targeted query per product so we get the FRESHEST stock value
+    // possible — minimising the window between read and cart-save.
     for (const item of items) {
-      const product = productMap[item.productId.toString()];
+      const product = await Product.findOne({
+        _id:      item.productId,
+        isActive: true,
+      }).select('name stock trackStock').lean();
+
       if (!product) {
         return res.status(404).json({
-          message: `Product ${item.productId} not found or is no longer available.`,
+          message: `Product not found or is no longer available.`,
         });
       }
-      // Only enforce stock if the product has stock tracking enabled
       if (product.trackStock && product.stock < item.quantity) {
         return res.status(400).json({
           message: `Insufficient stock for "${product.name}". Available: ${product.stock}.`,
@@ -244,16 +243,46 @@ const checkout = async (req, res, next) => {
       }
     }
 
-    // Decrement stock only for tracked products
-    await Promise.all(
-      cart.items
-        .filter((item) => productMap[item.productId.toString()]?.trackStock)
-        .map((item) =>
-          Product.findByIdAndUpdate(item.productId, {
-            $inc: { stock: -item.quantity },
-          })
-        )
-    );
+    // ── Atomic stock decrement (race-condition safe) ───────────────────────────
+    // For each tracked product, we use a conditional findOneAndUpdate that ONLY
+    // decrements if sufficient stock exists AT THE MOMENT of the write.
+    // MongoDB's document-level locking ensures only one concurrent request wins.
+    //
+    // If any product fails (stock was taken by another user between our read and
+    // write), we roll back all already-decremented products and return a 409.
+    const decrementedIds = [];
+
+    for (const item of cart.items) {
+      const product = productMap[item.productId.toString()];
+      if (!product?.trackStock) continue; // skip untracked products
+
+      const updated = await Product.findOneAndUpdate(
+        {
+          _id:   item.productId,
+          stock: { $gte: item.quantity }, // atomic guard — only matches if stock is sufficient
+        },
+        { $inc: { stock: -item.quantity } },
+        { new: true }
+      );
+
+      if (!updated) {
+        // This product was just taken by a concurrent order — rollback all
+        // decrements already applied in this loop and reject the request.
+        if (decrementedIds.length > 0) {
+          await Promise.all(
+            decrementedIds.map(({ id, qty }) =>
+              Product.findByIdAndUpdate(id, { $inc: { stock: qty } })
+            )
+          );
+        }
+        return res.status(409).json({
+          message: `"${item.name}" just sold out while you were checking out. ` +
+                   `Please update your cart and try again.`,
+        });
+      }
+
+      decrementedIds.push({ id: item.productId, qty: item.quantity });
+    }
 
     // Calculate totals using live DB prices (never trust client-sent prices for totals)
     const subtotal = cart.items.reduce((sum, item) => {

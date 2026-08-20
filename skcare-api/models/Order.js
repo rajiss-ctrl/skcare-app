@@ -71,5 +71,8 @@ const orderSchema = new mongoose.Schema(
 // ─── Indexes ─────────────────────────────────────────────────────────────────
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1 });
+orderSchema.index({ paymentStatus: 1 });
+// Compound index for admin filter queries (orderStatus + paymentStatus)
+orderSchema.index({ orderStatus: 1, paymentStatus: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);

@@ -46,31 +46,30 @@ const StaCenter = () => {
       const token = getToken();
       if (!token) return;
       try {
-        // Fetch orders summary and product count in parallel
-        const [ordersRes, productsRes, usersRes] = await Promise.all([
-          fetch(`${API}/api/orders/admin/all?limit=1000`, {
+        // Three parallel requests — all use aggregation server-side, no large payloads
+        const [statsRes, productsRes, usersRes] = await Promise.all([
+          // New aggregation endpoint — O(1) regardless of order count
+          fetch(`${API}/api/orders/admin/stats`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch(`${API}/api/products?limit=1&isActive=true`),
+          fetch(`${API}/api/products?limit=1`),
           fetch(`${API}/api/users?limit=1`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
 
-        const ordersData   = await ordersRes.json();
+        const statsData    = await statsRes.json();
         const productsData = await productsRes.json();
         const usersData    = await usersRes.json();
 
-        const allOrders: { paymentStatus: string; totalAmount: number }[] =
-          ordersData.data || [];
+        if (!statsRes.ok)    throw new Error(statsData.message    || 'Failed to fetch order stats');
+        if (!usersRes.ok)    throw new Error(usersData.message    || 'Failed to fetch user stats');
 
         setStats({
-          totalOrders:    ordersData.pagination?.total ?? allOrders.length,
-          pendingOrders:  allOrders.filter((o) => o.paymentStatus === 'pending').length,
-          paidOrders:     allOrders.filter((o) => o.paymentStatus === 'paid').length,
-          totalRevenue:   allOrders
-            .filter((o) => o.paymentStatus === 'paid')
-            .reduce((s, o) => s + o.totalAmount, 0),
+          totalOrders:    statsData.totalOrders    ?? 0,
+          pendingOrders:  statsData.pendingOrders  ?? 0,
+          paidOrders:     statsData.paidOrders     ?? 0,
+          totalRevenue:   statsData.totalRevenue   ?? 0,
           totalCustomers: usersData.pagination?.total ?? 0,
           totalProducts:  productsData.pagination?.total ?? 0,
         });

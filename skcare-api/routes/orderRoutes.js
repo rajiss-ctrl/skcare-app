@@ -1,13 +1,14 @@
 // routes/orderRoutes.js
 const router         = require('express').Router();
 const authMiddleware = require('../middleware/authMiddleware');
-const requireAdmin   = require('../middleware/requireAdmin');
+const requireRole    = require('../middleware/requireRole');
 const {
   getMyOrders,
   getOrderById,
   getAllOrders,
   updateOrderStatus,
   cancelOrder,
+  getOrderStats,
 } = require('../controller/orderController');
 const { handleValidationErrors, mongoIdParam } = require('../middleware/validate');
 
@@ -38,12 +39,15 @@ router.patch(
 // ── Admin-only ────────────────────────────────────────────────────────────────
 
 // GET  /api/orders/admin/all  — all orders with filters
-router.get('/admin/all', requireAdmin, getAllOrders);
+router.get('/admin/all', requireRole.admin, getAllOrders);
+
+// GET  /api/orders/admin/stats — aggregated stats for dashboard
+router.get('/admin/stats', requireRole.admin, getOrderStats);
 
 // PATCH /api/orders/:id/status — update order/payment status
 router.patch(
   '/:id/status',
-  requireAdmin,
+  requireRole.admin,
   mongoIdParam('id'),
   handleValidationErrors,
   updateOrderStatus

@@ -175,10 +175,72 @@ const cancelOrder = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/orders/admin/stats
+ * Admin only — single aggregation pipeline that returns dashboard stats
+ * without fetching individual order documents.
+ * O(1) query regardless of how many orders exist — uses MongoDB's native
+ * $group and $facet operators which run entirely server-side.
+ */
+const getOrderStats = async (req, res, next) => {
+  try {
+    const [result] = await Order.aggregate([
+      {
+        $facet: {
+          // Count and sum by paymentStatus
+          byPayment: [
+            {
+              $group: {
+                _id:      '$paymentStatus',
+                count:    { $sum: 1 },
+                revenue:  { $sum: '$totalAmount' },
+              },
+            },
+          ],
+          // Count by orderStatus
+          byOrder: [
+            {
+              $group: {
+                _id:   '$orderStatus',
+                count: { $sum: 1 },
+              },
+            },
+          ],
+          // Total order count
+          total: [{ $count: 'count' }],
+        },
+      },
+    ]);
+
+    // Build a convenient lookup from the aggregation results
+    const paymentMap = {};
+    (result.byPayment || []).forEach((r) => { paymentMap[r._id] = r; });
+
+    const orderMap = {};
+    (result.byOrder || []).forEach((r) => { orderMap[r._id] = r; });
+
+    return res.status(200).json({
+      totalOrders:    result.total[0]?.count                  ?? 0,
+      paidOrders:     paymentMap.paid?.count                  ?? 0,
+      pendingOrders:  paymentMap.pending?.count               ?? 0,
+      failedOrders:   paymentMap.failed?.count                ?? 0,
+      totalRevenue:   paymentMap.paid?.revenue                ?? 0,
+      processing:     orderMap.processing?.count              ?? 0,
+      confirmed:      orderMap.confirmed?.count               ?? 0,
+      shipped:        orderMap.shipped?.count                 ?? 0,
+      delivered:      orderMap.delivered?.count               ?? 0,
+      cancelled:      orderMap.cancelled?.count               ?? 0,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getMyOrders,
   getOrderById,
   getAllOrders,
+  getOrderStats,
   updateOrderStatus,
   cancelOrder,
 };

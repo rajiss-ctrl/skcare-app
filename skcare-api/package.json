@@ -4,9 +4,9 @@
   "description": "SKCare e-commerce REST API",
   "main": "app.js",
   "scripts": {
-    "start":            "node app.js",
-    "dev":              "nodemon app.js",
-    "seed:superadmin":  "node scripts/seedSuperAdmin.js"
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "seed:superadmin": "node scripts/seedSuperAdmin.js"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +14,7 @@
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.5.1",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

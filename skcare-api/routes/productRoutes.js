@@ -73,6 +73,11 @@ router.get('/', async (req, res, next) => {
       Product.countDocuments(filter),
     ]);
 
+    // Cache public product listings for 60 seconds on the CDN/browser.
+    // Stale-while-revalidate: serve cached copy for up to 5 minutes while
+    // refreshing in the background — zero latency for repeat visitors.
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+
     return res.status(200).json({
       data: products,
       pagination: { total, page, limit, pages: Math.ceil(total / limit) },

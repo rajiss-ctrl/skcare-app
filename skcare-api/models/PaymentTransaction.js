@@ -56,7 +56,9 @@ const paymentTransactionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Compound index for fast order lookups
+// ─── Indexes ─────────────────────────────────────────────────────────────────
 paymentTransactionSchema.index({ orderId: 1, status: 1 });
+// Ownership check in getTransactionStatus queries tx_ref + userId together
+paymentTransactionSchema.index({ userId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('PaymentTransaction', paymentTransactionSchema);

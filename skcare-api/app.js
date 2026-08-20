@@ -5,6 +5,7 @@ const mongoose     = require('mongoose');
 const cors         = require('cors');
 const rateLimit    = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
+const compression  = require('compression');
 
 // Load env vars before anything else
 dotenv.config();
@@ -23,6 +24,10 @@ if (process.env.JWT_SECRET.startsWith('replace_with')) {
 }
 
 const app = express();
+
+// ─── Compression ─────────────────────────────────────────────────────────────
+// Gzip/Brotli compress all responses > 1kb — reduces bandwidth by ~70%
+app.use(compression());
 
 // ─── Security & CORS ────────────────────────────────────────────────────
 
@@ -58,23 +63,44 @@ app.use(express.urlencoded({ extended: false, limit: '10kb' }));
 app.use(cookieParser()); // parse httpOnly cookies for refresh token
 
 // ─── Rate limiters ────────────────────────────────────────────────────────────
+//
+// CURRENT: In-memory store (fine for a single instance / Render free tier).
+//
+// UPGRADE PATH — when you scale to 2+ instances, replace MemoryStore with
+// a shared Redis store so all instances share the same counters:
+//
+//   npm install rate-limit-redis ioredis
+//
+//   const RedisStore = require('rate-limit-redis');
+//   const Redis      = require('ioredis');
+//   const redisClient = new Redis(process.env.REDIS_URL);
+//
+//   store: new RedisStore({
+//     sendCommand: (...args) => redisClient.call(...args),
+//   })
+//
+// Add REDIS_URL to your Render environment variables (Upstash Redis free tier
+// works well: https://upstash.com — free 10k req/day).
 
-// General API limiter — applies to all routes
+// General API limiter — 200 req / 15 min per IP
 const apiLimiter = rateLimit({
-  windowMs:         15 * 60 * 1000, // 15 minutes
-  max:              200,
-  standardHeaders:  true,
-  legacyHeaders:    false,
-  message:          { error: 'TooManyRequests', message: 'Too many requests. Please try again later.' },
+  windowMs:        15 * 60 * 1000,
+  max:             200,
+  standardHeaders: true,
+  legacyHeaders:   false,
+  // Skip rate-limiting for health checks
+  skip: (req) => req.path === '/health',
+  message: { error: 'TooManyRequests', message: 'Too many requests. Please try again later.' },
 });
 
-// Stricter limiter for authentication endpoints — brute-force protection
+// Strict limiter for auth endpoints — brute-force protection
+// 20 attempts per 15 min per IP
 const authLimiter = rateLimit({
-  windowMs:         15 * 60 * 1000, // 15 minutes
-  max:              20,
-  standardHeaders:  true,
-  legacyHeaders:    false,
-  message:          { error: 'TooManyRequests', message: 'Too many auth attempts. Please wait 15 minutes.' },
+  windowMs:        15 * 60 * 1000,
+  max:             20,
+  standardHeaders: true,
+  legacyHeaders:   false,
+  message: { error: 'TooManyRequests', message: 'Too many auth attempts. Please wait 15 minutes.' },
 });
 
 app.use(apiLimiter);
@@ -82,7 +108,16 @@ app.use(apiLimiter);
 // ─── MongoDB connection ───────────────────────────────────────────────────────
 
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(process.env.MONGO_URI, {
+    // ── Connection pool tuning ─────────────────────────────────────────────────
+    // Default pool size is 5 — increase for production workloads.
+    // Each Node process holds this many persistent connections to MongoDB.
+    maxPoolSize:     parseInt(process.env.MONGO_POOL_SIZE || '10', 10),
+    minPoolSize:     2,            // keep 2 warm connections always ready
+    serverSelectionTimeoutMS: 5000,  // fail fast if Atlas is unreachable
+    socketTimeoutMS:          45000, // kill idle sockets after 45s
+    family: 4,                       // use IPv4, avoids lookup delays
+  })
   .then(async () => {
     console.log('✅ MongoDB connected');
     // Drop stale indexes from old Firebase schema that conflict with new schema
@@ -130,13 +165,30 @@ app.use('/api/orders',      orderRoutes);
 app.use('/api/flutterwave', flutterwaveRoutes);
 
 // ─── Health check ─────────────────────────────────────────────────────────────
+// Render, Railway, and uptime monitors poll this.
+// Returns 200 only when the DB is connected — lets the platform restart
+// the instance automatically if MongoDB drops.
 
 app.get('/health', (_req, res) => {
-  res.status(200).json({
-    status:   'ok',
-    uptime:   process.uptime(),
-    dbState:  mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-  });
+  const dbState = mongoose.connection.readyState;
+  const healthy = dbState === 1; // 1 = connected
+
+  const mem   = process.memoryUsage();
+  const mb    = (bytes) => Math.round(bytes / 1024 / 1024);
+
+  const body = {
+    status:   healthy ? 'ok' : 'degraded',
+    uptime:   Math.round(process.uptime()),
+    db:       healthy ? 'connected' : 'disconnected',
+    memory: {
+      rss:       `${mb(mem.rss)} MB`,
+      heapUsed:  `${mb(mem.heapUsed)} MB`,
+      heapTotal: `${mb(mem.heapTotal)} MB`,
+    },
+  };
+
+  // Return 503 if DB is down — signals to Render to restart the dyno
+  res.status(healthy ? 200 : 503).json(body);
 });
 
 // ─── 404 handler ─────────────────────────────────────────────────────────────

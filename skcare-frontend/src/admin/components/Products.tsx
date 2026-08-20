@@ -30,8 +30,33 @@ const Products = () => {
   const [hasMore,   setHasMore]   = useState(false);
   const [search,    setSearch]    = useState('');
   const [editId,    setEditId]    = useState<string | null>(null);
+  const [editField, setEditField] = useState<'price' | 'qty' | null>(null);
   const [editPrice, setEditPrice] = useState('');
+  const [editQty,   setEditQty]   = useState('');
   const [saving,    setSaving]    = useState<string | null>(null);
+
+  // Open inline editor for a specific field
+  const startEdit = (product: Product, field: 'price' | 'qty') => {
+    setEditId(product._id);
+    setEditField(field);
+    if (field === 'price') setEditPrice(String(product.price));
+    if (field === 'qty')   setEditQty(String(product.stock));
+  };
+
+  const cancelEdit = () => { setEditId(null); setEditField(null); };
+
+  const saveEdit = (product: Product) => {
+    if (editField === 'price') {
+      const val = parseFloat(editPrice);
+      if (isNaN(val) || val < 0) return;
+      updateProduct(product._id, { price: val });
+    }
+    if (editField === 'qty') {
+      const val = parseInt(editQty, 10);
+      if (isNaN(val) || val < 0) return;
+      updateProduct(product._id, { stock: val });
+    }
+  };
 
   const authHeaders = () => ({
     'Content-Type': 'application/json',
@@ -135,7 +160,7 @@ const Products = () => {
                 <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   <th className="px-4 py-3 text-left">Product</th>
                   <th className="px-4 py-3 text-right">Price</th>
-                  <th className="px-4 py-3 text-center">Stock</th>
+                  <th className="px-4 py-3 text-center">Qty</th>
                   <th className="px-4 py-3 text-left">Category</th>
                   <th className="px-4 py-3 text-center">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
@@ -162,29 +187,30 @@ const Products = () => {
 
                     {/* Price — inline edit */}
                     <td className="px-4 py-3 text-right">
-                      {editId === product._id ? (
+                      {editId === product._id && editField === 'price' ? (
                         <div className="flex items-center justify-end gap-1">
                           <input
                             type="number"
                             value={editPrice}
                             onChange={(e) => setEditPrice(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(product); if (e.key === 'Escape') cancelEdit(); }}
                             className="w-24 text-xs border border-gray-300 rounded px-2 py-1
                                        focus:outline-none focus:border-[#4F705B] text-right"
                             autoFocus
                           />
                           <button
-                            onClick={() => updateProduct(product._id, { price: parseFloat(editPrice) })}
+                            onClick={() => saveEdit(product)}
                             disabled={saving === product._id}
                             className="text-[10px] bg-[#4F705B] text-white px-2 py-1 rounded disabled:opacity-50"
                           >
                             {saving === product._id ? '…' : '✓'}
                           </button>
-                          <button onClick={() => setEditId(null)}
+                          <button onClick={cancelEdit}
                             className="text-[10px] text-gray-400 hover:text-gray-600">✕</button>
                         </div>
                       ) : (
                         <button
-                          onClick={() => { setEditId(product._id); setEditPrice(String(product.price)); }}
+                          onClick={() => startEdit(product, 'price')}
                           className="text-xs font-semibold text-gray-800 hover:text-[#4F705B] transition"
                           title="Click to edit price"
                         >
@@ -193,14 +219,46 @@ const Products = () => {
                       )}
                     </td>
 
-                    {/* Stock */}
-                    <td className="px-4 py-3 text-center text-xs text-gray-600">
-                      {product.trackStock
-                        ? <span className={product.stock === 0 ? 'text-red-500 font-semibold' : ''}>
-                            {product.stock}
-                          </span>
-                        : <span className="text-gray-400">—</span>
-                      }
+                    {/* Qty — always shown, inline editable */}
+                    <td className="px-4 py-3 text-center">
+                      {editId === product._id && editField === 'qty' ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <input
+                            type="number"
+                            value={editQty}
+                            min="0"
+                            onChange={(e) => setEditQty(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(product); if (e.key === 'Escape') cancelEdit(); }}
+                            className="w-16 text-xs border border-gray-300 rounded px-2 py-1
+                                       focus:outline-none focus:border-[#4F705B] text-center"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => saveEdit(product)}
+                            disabled={saving === product._id}
+                            className="text-[10px] bg-[#4F705B] text-white px-2 py-1 rounded disabled:opacity-50"
+                          >
+                            {saving === product._id ? '…' : '✓'}
+                          </button>
+                          <button onClick={cancelEdit}
+                            className="text-[10px] text-gray-400 hover:text-gray-600">✕</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => startEdit(product, 'qty')}
+                          title="Click to edit quantity"
+                          className={`text-xs font-semibold transition hover:text-[#4F705B] ${
+                            product.trackStock && product.stock === 0
+                              ? 'text-red-500'
+                              : 'text-gray-700'
+                          }`}
+                        >
+                          {product.stock}
+                          {product.trackStock && (
+                            <span className="ml-1 text-[9px] text-gray-400 font-normal">tracked</span>
+                          )}
+                        </button>
+                      )}
                     </td>
 
                     {/* Category */}
