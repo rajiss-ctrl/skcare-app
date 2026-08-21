@@ -70,7 +70,7 @@ const getAllOrders = async (req, res, next) => {
 
     const [orders, total] = await Promise.all([
       Order.find(filter)
-           .populate('userId', 'email name')
+           .populate('userId', 'email name')   // null when user was deleted — handled client-side
            .sort({ createdAt: -1 })
            .skip(skip)
            .limit(limit)

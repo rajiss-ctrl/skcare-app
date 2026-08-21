@@ -134,10 +134,14 @@ const OrdersPanel = () => {
     }
   };
 
-  const userEmail = (order: AdminOrder) =>
-    typeof order.userId === 'object' ? order.userId.email : order.userEmail;
-  const userName  = (order: AdminOrder) =>
-    typeof order.userId === 'object' ? order.userId.name : '';
+  const userEmail = (order: AdminOrder) => {
+    if (order.userId && typeof order.userId === 'object') return order.userId.email;
+    return order.userEmail || '—';
+  };
+  const userName = (order: AdminOrder) => {
+    if (order.userId && typeof order.userId === 'object') return order.userId.name;
+    return '';
+  };
 
   return (
     <div className="space-y-5">
