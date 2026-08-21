@@ -230,8 +230,8 @@ const OrdersPanel = () => {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex -space-x-1.5">
-                          {order.items.slice(0, 3).map((item, i) => (
-                            <img key={i} src={item.imageUrl} alt={item.name}
+                          {order.items.filter(Boolean).slice(0, 3).map((item, i) => (
+                            <img key={i} src={item.imageUrl || '/placeholder.jpg'} alt={item.name || 'Product'}
                               className="w-7 h-7 rounded-md object-cover border border-white bg-gray-100"
                               style={{ zIndex: 3 - i }}
                             />
@@ -280,12 +280,14 @@ const OrdersPanel = () => {
                                 Items
                               </p>
                               <div className="space-y-2">
-                                {order.items.map((item) => (
+                                {order.items.filter(Boolean).map((item) => (
                                   <div key={item.productId} className="flex items-center gap-2">
-                                    <img src={item.imageUrl} alt={item.name}
+                                    <img src={item.imageUrl || '/placeholder.jpg'} alt={item.name || 'Product'}
                                       className="w-8 h-8 rounded object-cover bg-gray-200 flex-shrink-0" />
                                     <div className="min-w-0 flex-1">
-                                      <p className="text-xs text-gray-700 truncate">{item.name}</p>
+                                      <p className="text-xs text-gray-700 truncate">
+                                        {item.name || 'Deleted product'}
+                                      </p>
                                       <p className="text-[10px] text-gray-400">
                                         {item.quantity} × ₦{item.price.toLocaleString()}
                                       </p>

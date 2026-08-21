@@ -81,7 +81,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
               placeholder="Full name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4F705B]"
+              className="w-full text-[#000000] border border-gray-300 rounded px-3 py-2 text-sm outline-none focus:border-[#4F705B]"
             />
           )}
           <input
@@ -90,7 +90,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             value={email}
             required
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4F705B]"
+            className="w-full text-[#000000] border border-gray-300 rounded px-3 py-2 text-sm outline-none focus:border-[#4F705B]"
           />
           <input
             type="password"
@@ -98,7 +98,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             value={password}
             required
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4F705B]"
+            className="w-full text-[#000000] border border-gray-300 rounded px-3 py-2 text-sm outline-none focus:border-[#4F705B]"
           />
           {tab === 'signup' && (
             <p className="text-xs text-gray-400">
@@ -106,12 +106,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             </p>
           )}
           {error && (
-            <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+            <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded">{error}</p>
           )}
           <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#4F705B] hover:bg-[#3a5344] text-white rounded-lg py-2 text-sm"
+            className="w-full bg-[#4F705B] hover:bg-[#3a5344] text-white rounded py-2 text-sm"
           >
             {loading ? 'Please wait…' : tab === 'signin' ? 'Sign In' : 'Create Account'}
           </Button>

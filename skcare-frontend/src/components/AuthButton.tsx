@@ -13,7 +13,7 @@ const AuthButton = () => {
       <Button
         onClick={signOut}
         variant="outline"
-        className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+        className="text-xs rounded border-gray-300 text-gray-700 hover:bg-gray-50"
       >
         Sign Out
       </Button>
@@ -24,7 +24,7 @@ const AuthButton = () => {
     <>
       <Button
         onClick={() => setShowModal(true)}
-        className="text-xs bg-[#4F705B] hover:bg-[#3a5344] text-white"
+        className="text-xs rounded bg-[#4F705B] hover:bg-[#3a5344] text-white"
       >
         Sign In
       </Button>

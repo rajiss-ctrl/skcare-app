@@ -12,11 +12,6 @@ const Hero = () => {
           Free deliveries on all orders within Nigeria
         </p>
       </div>
-      {/* Public key=FLWPUBK_TEST-6cbe1fbc89c44ff6f9e9a61a16b599e3-X
-      
-      Secret key=FLWSECK_TEST-bc281ef453bd5b1e8bca0f9b3f0276de-X
-      
-      Encryption key=FLWSECK_TEST0e869f37ae54 */}
       {/* Navbar */}  
         <NavBar/>
     

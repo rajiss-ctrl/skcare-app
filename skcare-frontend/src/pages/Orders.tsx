@@ -200,8 +200,8 @@ const OrderCard: React.FC<{ order: Order; defaultOpen?: boolean }> = ({ order, d
         <div className="flex items-center gap-3 min-w-0">
           {/* Thumbnail stack */}
           <div className="flex -space-x-2 flex-shrink-0">
-            {order.items.slice(0, 3).map((item, i) => (
-              <img key={i} src={item.imageUrl} alt={item.name}
+            {order.items.filter(Boolean).slice(0, 3).map((item, i) => (
+              <img key={i} src={item.imageUrl || '/placeholder.jpg'} alt={item.name || 'Product'}
                 className="w-9 h-9 rounded-lg object-cover border-2 border-white bg-gray-100"
                 style={{ zIndex: 3 - i }}
               />
@@ -244,12 +244,14 @@ const OrderCard: React.FC<{ order: Order; defaultOpen?: boolean }> = ({ order, d
           <div>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Items</p>
             <div className="space-y-2">
-              {order.items.map((item) => (
+              {order.items.filter(Boolean).map((item) => (
                 <div key={item.productId} className="flex items-center gap-3">
-                  <img src={item.imageUrl} alt={item.name}
+                  <img src={item.imageUrl || '/placeholder.jpg'} alt={item.name || 'Product'}
                     className="w-10 h-10 rounded-lg object-cover bg-gray-100 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
+                    <p className="text-xs font-medium text-gray-800 truncate">
+                      {item.name || 'Deleted product'}
+                    </p>
                     <p className="text-[10px] text-gray-400">Qty: {item.quantity}</p>
                   </div>
                   <p className="text-xs font-semibold text-gray-800 flex-shrink-0">

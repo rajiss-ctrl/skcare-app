@@ -134,7 +134,7 @@ const ProductList: React.FC<ProductListProps> = ({ filteredProducts }) => {
       </div>
 
       {/* Product grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5 lg:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5 lg:gap-6">
         {paginated.map((product) => {
           const image   = product.imageUrl || '/placeholder.jpg';
           const price   = product.price    || 0;

@@ -62,7 +62,7 @@ const NavBar = () => {
         </ul>
 
         {/* Search */}
-        <div className="hidden relative md:flex items-center gap-2 border text-black border-[#BFC0C2] rounded-[8px] py-[0.20rem] text-xs md:px-2">
+        <div className="hidden relative md:flex items-center gap-2 border text-black border-[#BFC0C2] rounded-[8px] py-[0.30rem] text-xs md:px-2">
           <img className="w-3 md:w-5" src={Search} alt="Search" />
           <input
             type="text"
