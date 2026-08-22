@@ -243,7 +243,7 @@ const OrderSummary: React.FC<{
 // ─── Main component ───────────────────────────────────────────────────────────
 const CheckoutForm: React.FC = () => {
   const { cart, cartTotal, updateShippingDetails, checkout, fetchCart, getLocalCartItems, clearCart } = useCart();
-  const { user, getToken, signIn, registerAndCheckout } = useAuth();
+  const { user, getToken, signIn, registerAndCheckout, isLoading: authLoading } = useAuth();
   const navigate       = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -291,6 +291,7 @@ const CheckoutForm: React.FC = () => {
   const {
     register: regS,
     handleSubmit: submitS,
+    reset: resetShipping,
     formState: { errors: errS },
   } = useForm<ShippingForm>({
     defaultValues: {
@@ -298,6 +299,18 @@ const CheckoutForm: React.FC = () => {
       email:    user?.email || '',
     },
   });
+
+  // Re-populate shipping fields after session restore completes
+  // (user is null on first render, then set async after token verification)
+  useEffect(() => {
+    if (user && !isAnonymous) {
+      resetShipping((current) => ({
+        ...current,
+        fullName: current.fullName || user.name  || '',
+        email:    current.email    || user.email || '',
+      }));
+    }
+  }, [user, isAnonymous, resetShipping]);
 
   // ── Auth fetch — auto-refreshes token on 401 then retries once ──────────────
   const authFetch = async (path: string, options: RequestInit = {}) => {
