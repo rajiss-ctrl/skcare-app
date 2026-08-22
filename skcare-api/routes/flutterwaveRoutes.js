@@ -5,6 +5,7 @@ const {
   initiatePayment,
   webhook,
   getTransactionStatus,
+  verifyByTransactionId,
 } = require('../controller/flutterwaveController');
 
 const router = express.Router();
@@ -38,5 +39,15 @@ router.post('/initiate-payment', authMiddleware, initiatePayment);
  * Authenticated — only the transaction owner can query.
  */
 router.get('/transaction-status/:tx_ref', authMiddleware, getTransactionStatus);
+
+/**
+ * GET /api/flutterwave/verify/:transaction_id
+ * PUBLIC — verifies a transaction by Flutterwave transaction ID.
+ * Called by the frontend immediately after the modal callback fires.
+ * Uses the transaction_id from Flutterwave's callback response which
+ * cannot be guessed — it's issued by Flutterwave and tied to a real charge.
+ * No auth token needed because the transaction_id itself is the proof.
+ */
+router.get('/verify/:transaction_id', verifyByTransactionId);
 
 module.exports = router;

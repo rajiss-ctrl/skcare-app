@@ -90,27 +90,57 @@ declare global {
 // ─── Pay button ───────────────────────────────────────────────────────────────
 const PayButton: React.FC<{
   config:    FlwConfig;
-  onSuccess: (tx_ref: string) => void;
+  onSuccess: (tx_ref: string, transaction_id: number) => void;
   onClose:   () => void;
   disabled:  boolean;
 }> = ({ config, onSuccess, onClose, disabled }) => {
+  // Track whether a successful callback was already received
+  // so onclose doesn't overwrite it with a cancellation message
+  let paymentCompleted = false;
+
   const handlePay = () => {
     if (!window.FlutterwaveCheckout) {
       alert('Payment system is loading. Please try again in a moment.');
       return;
     }
+
+    // Guard against invalid config before opening modal
+    if (!config.amount || config.amount <= 0) {
+      alert('Cart total is 0. Please add items to your cart before paying.');
+      return;
+    }
+    if (!config.customer?.email) {
+      alert('Customer email is missing. Please complete your details and try again.');
+      return;
+    }
+
+    paymentCompleted = false;
+
     window.FlutterwaveCheckout({
       public_key:      config.public_key,
       tx_ref:          config.tx_ref,
       amount:          config.amount,
       currency:        config.currency,
-      payment_options: 'card',
+      payment_options: 'card,ussd,banktransfer',
       customer:        config.customer,
       customizations:  config.customizations,
-      callback: (response: { status: string; tx_ref: string }) => {
-        onSuccess(response.tx_ref);
+      callback: (response: { status: string; tx_ref: string; transaction_id: number }) => {
+        // Only trigger verification for completed/successful payment attempts
+        if (response.status === 'successful' || response.status === 'completed') {
+          paymentCompleted = true;
+          // Pass transaction_id for the public verify endpoint (no auth token needed)
+          onSuccess(response.tx_ref, response.transaction_id);
+        } else if (response.status === 'cancelled') {
+          onClose();
+        }
+        // For any other status — do nothing, let user retry
       },
-      onclose: () => onClose(),
+      onclose: () => {
+        // Only treat as cancellation if payment was NOT already confirmed
+        if (!paymentCompleted) {
+          onClose();
+        }
+      },
     });
   };
 
@@ -269,18 +299,41 @@ const CheckoutForm: React.FC = () => {
     },
   });
 
-  // ── Auth fetch (authenticated routes) ─────────────────────────────────────
+  // ── Auth fetch — auto-refreshes token on 401 then retries once ──────────────
   const authFetch = async (path: string, options: RequestInit = {}) => {
-    const token = getToken();
-    const res   = await fetch(`${API}${path}`, {
-      ...options,
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {}),
-      },
-    });
+    const makeRequest = async (token: string | null) =>
+      fetch(`${API}${path}`, {
+        ...options,
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(options.headers || {}),
+        },
+      });
+
+    let token = getToken();
+    let res   = await makeRequest(token);
+
+    // Token expired — attempt silent refresh via httpOnly cookie then retry
+    if (res.status === 401) {
+      try {
+        const refreshRes = await fetch(`${API}/api/auth/refresh`, {
+          method:      'POST',
+          credentials: 'include',
+          headers:     { 'Content-Type': 'application/json' },
+        });
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          // Save new token to sessionStorage
+          sessionStorage.setItem('skcare_token', refreshData.accessToken);
+          token = refreshData.accessToken;
+          // Retry the original request with the new token
+          res = await makeRequest(token);
+        }
+      } catch { /* refresh failed — fall through to error below */ }
+    }
+
     const json = await res.json();
     if (!res.ok) throw new Error(json.message || 'Request failed');
     return json;
@@ -416,25 +469,31 @@ const CheckoutForm: React.FC = () => {
     }
   };
 
-  // ── Payment verification ──────────────────────────────────────────────────
-  // Cart is cleared HERE on success — not at order creation time.
-  // If payment fails or the modal is closed, the cart is untouched.
-  const handlePaymentCallback = async (tx_ref: string) => {
+  // ── Payment verification using public endpoint (no auth token needed) ───────
+  // Uses the transaction_id from Flutterwave's callback to verify server-side.
+  // This works even if the user's JWT has expired during checkout.
+  const handlePaymentCallback = async (tx_ref: string, transaction_id: number) => {
     setVerifying(true);
     setPaymentError('');
-    const MAX_POLLS = 6;
+
+    const MAX_POLLS  = 6;
+    const POLL_DELAY = 5_000; // 5s between polls (transaction_id verify is faster)
+
     for (let i = 1; i <= MAX_POLLS; i++) {
       try {
-        const data = await authFetch(`/api/flutterwave/transaction-status/${tx_ref}`);
+        // Public endpoint — no Authorization header needed
+        const res  = await fetch(`${API}/api/flutterwave/verify/${transaction_id}`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+
         if (data.status === 'success') {
-          // Payment confirmed — clear the cart then navigate to orders
           await clearCart();
           setVerifying(false);
           navigate('/');
           return;
         }
         if (data.status === 'failed') {
-          // Payment failed — cart is intentionally kept intact
           setVerifying(false);
           setPaymentError(
             'Payment was not successful. Your cart items are still saved — you can try again.'
@@ -442,8 +501,10 @@ const CheckoutForm: React.FC = () => {
           return;
         }
       } catch { /* keep polling */ }
-      if (i < MAX_POLLS) await new Promise((r) => setTimeout(r, 10_000));
+
+      if (i < MAX_POLLS) await new Promise((r) => setTimeout(r, POLL_DELAY));
     }
+
     setVerifying(false);
     setPaymentError(
       'Verification is taking longer than expected. If your payment was deducted, ' +
@@ -785,7 +846,6 @@ const CheckoutForm: React.FC = () => {
                     disabled={verifying}
                   />
                 )}
-
                 <p className="mt-3 text-center text-xs text-gray-400
                               flex items-center justify-center gap-1">
                   <LockIcon /> 256-bit SSL encryption · Powered by Flutterwave

@@ -27,22 +27,20 @@ const pruneRefreshTokens = (user) => {
 };
 
 const setRefreshCookie = (res, token) => {
-  const isProd = process.env.NODE_ENV === 'production';
   res.cookie('skcare_rt', token, {
     httpOnly: true,
-    secure:   true,
-    sameSite: isProd ? 'none' : 'strict',
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: 'lax',   // 'lax' works for cross-origin on localhost; 'none' for production HTTPS
     maxAge:   7 * 24 * 60 * 60 * 1000,
     path:     '/api/auth',
   });
 };
 
 const clearRefreshCookie = (res) => {
-  const isProd = process.env.NODE_ENV === 'production';
   res.clearCookie('skcare_rt', {
     httpOnly: true,
-    secure:   true,
-    sameSite: isProd ? 'none' : 'strict',
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
     path:     '/api/auth',
   });
 };

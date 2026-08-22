@@ -61,6 +61,13 @@ const initiatePayment = async (req, res, next) => {
       return res.status(400).json({ message: 'This order has already been paid.' });
     }
 
+    // Guard: Flutterwave rejects amount of 0
+    if (!order.totalAmount || order.totalAmount <= 0) {
+      return res.status(400).json({
+        message: 'Order total is 0. Cannot initiate payment for an empty order.',
+      });
+    }
+
     // Check for an existing pending transaction for this order (idempotency)
     let transaction = await PaymentTransaction.findOne({
       orderId: order._id,
@@ -83,7 +90,7 @@ const initiatePayment = async (req, res, next) => {
     // The public key is sent here so we can switch keys without a frontend deploy.
     return res.status(200).json({
       tx_ref:     transaction.tx_ref,
-      amount:     transaction.amount,
+      amount:     Number(transaction.amount),   // ensure number not string
       currency:   transaction.currency,
       public_key: process.env.FLW_PUBLIC_KEY,
       customer: {
@@ -305,4 +312,109 @@ const getTransactionStatus = async (req, res, next) => {
   }
 };
 
-module.exports = { initiatePayment, webhook, getTransactionStatus };
+/**
+ * GET /api/flutterwave/verify/:transaction_id
+ * PUBLIC endpoint — no auth token required.
+ *
+ * Verifies a payment using Flutterwave's transaction ID returned in the
+ * modal callback. The transaction_id is issued by Flutterwave and is
+ * cryptographically tied to a real charge — it cannot be guessed or forged.
+ *
+ * This solves the token expiry problem: even if the user's JWT has expired
+ * by the time the modal closes, we can still verify the payment.
+ */
+const verifyByTransactionId = async (req, res, next) => {
+  try {
+    const { transaction_id } = req.params;
+
+    if (!transaction_id || isNaN(Number(transaction_id))) {
+      return res.status(400).json({ message: 'Invalid transaction ID.' });
+    }
+
+    // Verify directly with Flutterwave using the transaction_id
+    let verifiedData;
+    try {
+      const response = await flw.Transaction.verify({ id: Number(transaction_id) });
+      verifiedData   = response.data;
+    } catch (flwErr) {
+      console.error('[Verify] Flutterwave verification failed:', flwErr.message);
+      return res.status(502).json({ message: 'Could not verify payment with Flutterwave.' });
+    }
+
+    if (!verifiedData) {
+      return res.status(404).json({ message: 'Transaction not found on Flutterwave.' });
+    }
+
+    const tx_ref = verifiedData.tx_ref;
+
+    // Find our internal transaction record by tx_ref
+    const transaction = await PaymentTransaction.findOne({ tx_ref });
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction record not found.' });
+    }
+
+    // Idempotency — already processed
+    if (transaction.status === 'success') {
+      return res.status(200).json({
+        status:  'success',
+        orderId: transaction.orderId,
+        tx_ref,
+      });
+    }
+
+    // Validate: amount and currency must match what we originally recorded
+    const isSuccessful =
+      verifiedData.status         === 'successful' &&
+      verifiedData.currency       === transaction.currency &&
+      verifiedData.charged_amount >= transaction.amount;
+
+    if (isSuccessful) {
+      // Update transaction record
+      transaction.status         = 'success';
+      transaction.flw_tx_id      = String(transaction_id);
+      transaction.processedAt    = new Date();
+      await transaction.save();
+
+      // Update order
+      await Order.findByIdAndUpdate(transaction.orderId, {
+        $set: {
+          paymentStatus:    'paid',
+          orderStatus:      'confirmed',
+          paymentReference: String(transaction_id),
+        },
+      });
+
+      // Clear the cart on successful payment
+      const Cart = require('../models/Carts');
+      await Cart.findOneAndUpdate(
+        { userId: transaction.userId },
+        { $set: { items: [], shippingDetails: {} } }
+      );
+
+      return res.status(200).json({
+        status:  'success',
+        orderId: transaction.orderId,
+        tx_ref,
+      });
+    }
+
+    // Payment failed or amount mismatch
+    transaction.status      = 'failed';
+    transaction.processedAt = new Date();
+    await transaction.save();
+
+    await Order.findByIdAndUpdate(transaction.orderId, {
+      $set: { paymentStatus: 'failed' },
+    });
+
+    return res.status(200).json({
+      status:  'failed',
+      orderId: transaction.orderId,
+      tx_ref,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { initiatePayment, webhook, getTransactionStatus, verifyByTransactionId };
