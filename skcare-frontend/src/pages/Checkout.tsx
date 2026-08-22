@@ -430,7 +430,7 @@ const CheckoutForm: React.FC = () => {
           // Payment confirmed — clear the cart then navigate to orders
           await clearCart();
           setVerifying(false);
-          navigate('/orders');
+          navigate('/');
           return;
         }
         if (data.status === 'failed') {
